@@ -567,10 +567,6 @@ def get_file_mse_effect(file_names, data_for_plot):
     
     return file_mse, mse_effect
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.stats import ttest_ind
-
 def plot_mse_effect_with_ttest(file_mse, file_names, file_of_interest, start_from=1, end_at=None):
     """
     Plots the distribution of MSE differences for combinations that include
@@ -616,7 +612,7 @@ def plot_mse_effect_with_ttest(file_mse, file_names, file_of_interest, start_fro
     end_at = end_at or num_files_max  # Use num_files_max if end_at is None
 
     # Create two sets of subplots: one for including the file, one for excluding
-    fig, axes = plt.subplots(end_at - start_from + 1, 2, figsize=(14, (end_at - start_from + 1) * 4))
+    fig, axes = plt.subplots(end_at - start_from + 1, 2, figsize=(14, (end_at - start_from + 1) * 4), constrained_layout=True)
 
     for i in range(start_from, end_at + 1):
         # MSE differences for combinations including and excluding the file_of_interest
@@ -648,6 +644,8 @@ def plot_mse_effect_with_ttest(file_mse, file_names, file_of_interest, start_fro
         axes[i - start_from, 1].set_xlabel('MSE Difference')
         axes[i - start_from, 1].set_ylabel('Density')
 
+    plt.tight_layout()
+    plt.show()
 
 def plot_mse_distribution_with_ttest(file_mse, file_names, file_of_interest, start_from=1, end_at=None):
     """
