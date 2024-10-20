@@ -8,6 +8,7 @@ from keras.layers import Conv1D, MaxPooling1D, Flatten, Dense
 from keras.optimizers import Adam
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.stats import ttest_ind
 import os
 import sys
 from IPython.display import display, HTML
@@ -83,7 +84,7 @@ def load_and_predict(filename, X):
     predictions_array = model.predict(np.array(X))[:, 0]
     return pd.DataFrame(predictions_array, columns=['Value'])
 
-def run(X_train, y_train, X_test, y_test, model_name, epochs=5, batch_size=32):
+def run(X_train, y_train, X_test, y_test, model_name, epochs=100, batch_size=32):
     model = build_cnn_model(X_train.shape[1:])
     history = train_model(model, X_train, y_train, X_test, y_test, epochs, batch_size)
     loss = evaluate_model(model, X_test, y_test)
@@ -157,30 +158,27 @@ def repeat_evalute_each_file(file_names, split_data, iterations):
         for file in file_names:
             all_results[file].append(loss_values[file])
     
-    # Convert the results to averages over the X runs
-    averaged_results = {file: np.mean(all_results[file], axis=0) for file in file_names}
-    
-    return all_results, averaged_results
+    return all_results
 
-def plot_repeat_evalute_each_file(file_names, all_results, averaged_results):
-    # Sort file_names based on "All Data MSE" (second element in averaged_results)
+def plot_repeat_evalute_each_file(file_names, all_results):
+    # Calculate the average and coefficient of variation for each file
+    averaged_results = {file: np.mean(all_results[file], axis=0) for file in file_names}
+    CV_training_data = {file: np.std([result[0] for result in all_results[file]]) / np.mean([result[0] for result in all_results[file]]) for file in file_names}
+    CV_all = {file: np.std([result[1] for result in all_results[file]]) / np.mean([result[1] for result in all_results[file]]) for file in file_names}
+
+    # Prepare the data
     sorted_file_names = sorted(file_names, key=lambda file: averaged_results[file][1])
-    
-    # Prepare data
     x = np.arange(len(sorted_file_names))
-    bar_width = 0.35  # Adjust the width for two columns
+    bar_width = 0.35
 
     # Extracting the individual and average results
     training_data_mse = {file: [result[0] for result in all_results[file]] for file in sorted_file_names}
     all_data_mse = {file: [result[1] for result in all_results[file]] for file in sorted_file_names}
-
     avg_training_data = [averaged_results[file][0] for file in sorted_file_names]
     avg_all_data = [averaged_results[file][1] for file in sorted_file_names]
 
-    # Creating the plot
     plt.figure(figsize=(10, 6))
 
-    # Scatter plot for each file
     for i, file in enumerate(sorted_file_names):
         plt.scatter([x[i] - bar_width / 2] * len(training_data_mse[file]), training_data_mse[file], color='skyblue', label='Training Data MSE' if i == 0 else "")
         plt.scatter([x[i] + bar_width / 2] * len(all_data_mse[file]), all_data_mse[file], color='lightgreen', label='All Data MSE' if i == 0 else "")
@@ -188,18 +186,60 @@ def plot_repeat_evalute_each_file(file_names, all_results, averaged_results):
         # Add horizontal line for Training Data MSE average and All Data MSE average
         plt.hlines(avg_training_data[i], x[i] - bar_width / 2 - 0.05, x[i] - bar_width / 2 + 0.05, colors='grey', linestyles='solid', label='Avgerage MSE' if i == 0 else "")
         plt.hlines(avg_all_data[i], x[i] + bar_width / 2 - 0.05, x[i] + bar_width / 2 + 0.05, colors='grey', linestyles='solid', label='')
+        
+        # Add label for the coefficient of variation next to the horizontal lines
+        plt.text(x[i] - bar_width*1.1, avg_training_data[i], f'{int(CV_training_data[file]*100)}%', ha='center', va='center', color='black', fontsize=8)
+        plt.text(x[i] + bar_width*1.1, avg_all_data[i], f'{int(CV_all[file]*100)}%', ha='center', va='center', color='black', fontsize=8)
 
     # Formatting
     plt.xticks(x, sorted_file_names, rotation=45, ha='right', rotation_mode='anchor')
     plt.xlabel('Files')
     plt.ylabel('Mean Squared Error (MSE)')
-
-    # Adjust legend and layout
     plt.legend()
     plt.tight_layout()
-
-    # Show the plot
+    plt.savefig(f'images/repeat_evalute_each_file.png')
+    plt.savefig('images/Figure 1.pdf', format='pdf')
     plt.show()
+
+def save_repeat_evalute_each_file(all_results, csv_path='repeat_evalute_each_file.csv'):
+    to_save = {}
+    for key in all_results.keys():
+        to_save[f'{key} (Self)'] = []
+        to_save[f'{key} (All)'] = []
+
+    for key, val in all_results.items():
+        to_save[f'{key} (Self)'] = [each[0] for each in val]
+        to_save[f'{key} (All)'] = [each[1] for each in val]
+
+    pd.DataFrame(to_save).to_csv(csv_path)
+
+def save_repeat_evalute_each_file_statistics(all_results, split_data, file_names):
+    data = {'File Name': [], 'Data Points' : [], 'Coefficient of Variation (Self)': [], 'Coefficient of Variation (All)': []}
+
+    def calc_CV(data):
+        return np.std(data) / np.mean(data)
+    
+    for file in file_names:
+        data['File Name'].append(file)
+        data['Data Points'].append(len(split_data[file]['X_train']))
+        data['Coefficient of Variation (Self)'].append(calc_CV([each[0] for each in all_results[file]]))
+        data['Coefficient of Variation (All)'].append(calc_CV([each[1] for each in all_results[file]]))
+    
+    pd.DataFrame(data).to_csv('Figure 2.csv')
+
+def load_repeat_evalute_each_file(csv_path='repeat_evalute_each_file.csv'):
+    df = pd.read_csv(csv_path, index_col=0)
+    temp = {}
+
+    for col in df.columns:
+        if ' (Self)' in col:
+            key = col.replace(' (Self)', '')
+            all_self = df[f'{key} (Self)'].tolist()
+            all_all = df[f'{key} (All)'].tolist()
+            
+            temp[key] = list(zip(all_self, all_all))
+
+    return temp
 
 def save_loss_values_to_csv(loss_values, filename='loss_values.csv'):
     df = pd.DataFrame.from_dict(loss_values, orient='index', columns=['Training Data MSE', 'All Data MSE'])
@@ -241,8 +281,6 @@ def plot_each_file_MSE_stacked(file_names, loss_values):
 
     plt.legend()
     plt.tight_layout()
-
-    # Save and show the plot
     plt.savefig('images/MSE for training vs all data.png')
     plt.show()
 
@@ -344,8 +382,6 @@ def plot_each_file(file_names, loss_values):
     plt.xticks(x, sorted_file_names, rotation=45)
     plt.legend()
     plt.tight_layout()
-    
-    # Save and show the plot
     plt.savefig('images/all file combinations.png')
     plt.show()
 
@@ -358,11 +394,8 @@ def plot_file_combinations(data_for_plot):
     # Create scatter plot
     plt.figure(figsize=(10, 6))
     plt.scatter(num_files, loss_values, color='grey', s=50, alpha=0.5)
-
     plt.xlabel('Number of Files')
     plt.ylabel('log10(MSE)')
-
-    # Save and show the plot
     plt.savefig('images/all file combinations.png')
     plt.show()
 
@@ -395,11 +428,50 @@ def plot_individual_file_combinations(data_for_plot, file_names):
         plt.xlabel('Number of Files')
         plt.ylabel('log10(MSE)')
         plt.legend()
-
-        # Save and show the plot
         plt.savefig(f'images/{file_name} file combinations.png')
         plt.show()
 
+def plot_individual_file_combinations_grid(data_for_plot, file_names):
+    # Extract data for plotting
+    num_files = [entry[0] for entry in data_for_plot]
+    loss_values = [entry[1] for entry in data_for_plot]
+    file_combos = [entry[2] for entry in data_for_plot]
+    
+    # Create a 3x3 grid for 9 files
+    fig, axs = plt.subplots(3, 3, figsize=(15, 15))
+    fig.subplots_adjust(hspace=0.2, wspace=0.2)  # Reduced spacing
+    
+    # Loop through each file and plot it in a grid cell
+    for i, file_name in enumerate(file_names):
+        row, col = divmod(i, 3)  # Determine the row and column in the grid
+        ax = axs[row, col]  # Select the corresponding subplot
+        
+        # Separate data based on whether the current file is included or not
+        included_points = [(n, l) for (n, l, combo) in data_for_plot if file_name in combo]
+        not_included_points = [(n, l) for (n, l, combo) in data_for_plot if file_name not in combo]
+        
+        # Plot included points in color
+        if included_points:
+            num_files_included, loss_included = zip(*included_points)
+            ax.scatter(num_files_included, loss_included, label=f'Includes {file_name}', color='tab:blue', s=100)
+        
+        # Plot not included points in grey
+        if not_included_points:
+            num_files_not_included, loss_not_included = zip(*not_included_points)
+            ax.scatter(num_files_not_included, loss_not_included, color='grey', s=50, alpha=0.5)
+        
+        # Set plot details for the current subplot
+        ax.set_xlabel('Number of Files')
+        if i % 3 == 0:
+            ax.set_ylabel('log10(MSE)')
+        else:
+            ax.set_yticklabels([])
+        ax.legend()
+    
+    # Save the entire 3x3 grid of plots
+    plt.savefig('images/Figure 2.png')
+    plt.savefig('images/Figure 2.pdf', format='pdf')
+    plt.show()
 
 def plot_saliency_map_sequence(sequence, base_px=16, multiplier=1, model_filename='model.keras'):
     """
@@ -475,3 +547,178 @@ def generate_saliency_map(model, sequence, target_class_index):
     gradients = gradients / tf.reduce_max(gradients)
     
     return gradients.numpy()
+
+def get_file_mse_effect(file_names, data_for_plot):
+    all_combinations = list(chain.from_iterable(combinations(file_names, i) for i in range(1, len(file_names) + 1)))
+    file_mse = {tuple(sorted(each)) : None for each in all_combinations}
+    for each in data_for_plot:
+        key = tuple(sorted(each[2].split(', ')))
+        file_mse[key] = each[1]
+
+    mse_effect = {file : [] for file in file_names}
+
+    for key, value in file_mse.items():
+        for file in file_names:
+            if file in key:
+                continue
+            next_key = tuple(sorted(key + (file,)))
+            mse_difference = value - file_mse[next_key]
+            mse_effect[file].append(mse_difference)
+    
+    return file_mse, mse_effect
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import ttest_ind
+
+def plot_mse_effect_with_ttest(file_mse, file_names, file_of_interest, start_from=1, end_at=None):
+    """
+    Plots the distribution of MSE differences for combinations that include
+    and exclude a given file of interest. Also performs a t-test for significance.
+
+    Parameters:
+    - file_mse: dictionary where keys are tuples of file names and values are MSEs
+    - file_names: list of all file names
+    - file_of_interest: the name of the file to analyze (e.g., 'Urtecho et al')
+    - start_from: minimum number of files in the combination to plot
+    - end_at: maximum number of files in the combination to plot
+    """
+    
+    # 1. Initialize lists to store MSE effects
+    include_mse_effect = []
+    exclude_mse_effect = []
+    
+    # 2. Calculate MSE differences for combinations including and excluding the file_of_interest
+    for key, value in file_mse.items():
+        for file in file_names:
+            if file in key:
+                continue
+            next_key = tuple(sorted(key + (file,)))
+            mse_difference = value - file_mse[next_key]
+
+            if file_of_interest in key:
+                include_mse_effect.append((len(key), mse_difference))
+            else:
+                exclude_mse_effect.append((len(key), mse_difference))
+
+    # 3. Organize MSE effects by number of files in the combination
+    include_mse_by_num_files = {i: [] for i in range(1, len(file_names))}
+    exclude_mse_by_num_files = {i: [] for i in range(1, len(file_names))}
+
+    for num_files, mse_diff in include_mse_effect:
+        include_mse_by_num_files[num_files].append(mse_diff)
+
+    for num_files, mse_diff in exclude_mse_effect:
+        exclude_mse_by_num_files[num_files].append(mse_diff)
+
+    # 4. Plotting the results
+    num_files_max = len(file_names) - 1  # Max number of files to consider
+    end_at = end_at or num_files_max  # Use num_files_max if end_at is None
+
+    # Create two sets of subplots: one for including the file, one for excluding
+    fig, axes = plt.subplots(end_at - start_from + 1, 2, figsize=(14, (end_at - start_from + 1) * 4))
+
+    for i in range(start_from, end_at + 1):
+        # MSE differences for combinations including and excluding the file_of_interest
+        include_diffs = include_mse_by_num_files[i]
+        exclude_diffs = exclude_mse_by_num_files[i]
+
+        # T-test to check for significant differences
+        if len(include_diffs) > 1 and len(exclude_diffs) > 1:
+            t_stat, p_value = ttest_ind(include_diffs, exclude_diffs, equal_var=False)
+        else:
+            t_stat, p_value = None, None  # Not enough data for t-test
+
+        # Print t-test results
+        if p_value is not None:
+            print(f'{i} Files: t-statistic = {t_stat:.4f}, p-value = {p_value:.4f} {'(Significant)' if p_value < 0.05 else ''}')
+        else:
+            print(f'{i} Files: Not enough data for t-test.')
+
+        # Plotting the distributions
+        # Plot for combinations including the file
+        sns.kdeplot(include_diffs, ax=axes[i - start_from, 0], color='blue', fill=True, warn_singular=False)
+        axes[i - start_from, 0].set_title(f'{i} Files (Including "{file_of_interest}")')
+        axes[i - start_from, 0].set_xlabel('MSE Difference')
+        axes[i - start_from, 0].set_ylabel('Density')
+
+        # Plot for combinations excluding the file
+        sns.kdeplot(exclude_diffs, ax=axes[i - start_from, 1], color='red', fill=True, warn_singular=False)
+        axes[i - start_from, 1].set_title(f'{i} Files (Excluding "{file_of_interest}")')
+        axes[i - start_from, 1].set_xlabel('MSE Difference')
+        axes[i - start_from, 1].set_ylabel('Density')
+
+
+def plot_mse_distribution_with_ttest(file_mse, file_names, file_of_interest, start_from=1, end_at=None):
+    """
+    Plots the distribution of MSE values for combinations that include
+    and exclude a given file of interest. Also performs a t-test for significance.
+
+    Parameters:
+    - file_mse: dictionary where keys are tuples of file names and values are MSEs
+    - file_names: list of all file names
+    - file_of_interest: the name of the file to analyze (e.g., 'Urtecho et al')
+    - start_from: minimum number of files in the combination to plot
+    - end_at: maximum number of files in the combination to plot
+    """
+    
+    # Initialize lists to store MSE values
+    include_mse_values = []
+    exclude_mse_values = []
+    
+    # Calculate MSE values for combinations including and excluding the file_of_interest
+    for key, value in file_mse.items():
+        if file_of_interest in key:
+            include_mse_values.append((len(key), value))
+        else:
+            exclude_mse_values.append((len(key), value))
+
+    # Organize MSE values by number of files in the combination
+    include_mse_by_num_files = {i: [] for i in range(1, len(file_names) + 1)}
+    exclude_mse_by_num_files = {i: [] for i in range(1, len(file_names) + 1)}
+
+    for num_files, mse_value in include_mse_values:
+        include_mse_by_num_files[num_files].append(mse_value)
+
+    for num_files, mse_value in exclude_mse_values:
+        exclude_mse_by_num_files[num_files].append(mse_value)
+
+    # Plotting the results
+    num_files_max = len(file_names)-1
+    end_at = end_at or num_files_max  # Use num_files_max if end_at is None
+
+    # Create two sets of subplots: one for including the file, one for excluding
+    fig, axes = plt.subplots(end_at - start_from + 1, 2, figsize=(14, (end_at - start_from + 1) * 4))
+
+    for i in range(start_from, end_at + 1):
+        # MSE values for combinations including and excluding the file_of_interest
+        include_mse = include_mse_by_num_files[i]
+        exclude_mse = exclude_mse_by_num_files[i]
+
+        # T-test to check for significant differences
+        if len(include_mse) > 1 and len(exclude_mse) > 1:
+            t_stat, p_value = ttest_ind(include_mse, exclude_mse, equal_var=False)
+        else:
+            t_stat, p_value = None, None  # Not enough data for t-test
+
+        # Print t-test results
+        if p_value is not None:
+            print(f'{i} Files: t-statistic = {t_stat:.4f}, p-value = {p_value:.4f} {'(Significant)' if p_value < 0.05 else ''}')
+        else:
+            print(f'{i} Files: Not enough data for t-test.')
+
+        # Plotting the distributions
+        # Plot for combinations including the file
+        sns.kdeplot(include_mse, ax=axes[i - start_from, 0], color='blue', fill=True, warn_singular=False)
+        axes[i - start_from, 0].set_title(f'MSE Distribution for {i} Files (Including "{file_of_interest}")')
+        axes[i - start_from, 0].set_xlabel('MSE Value')
+        axes[i - start_from, 0].set_ylabel('Density')
+
+        # Plot for combinations excluding the file
+        sns.kdeplot(exclude_mse, ax=axes[i - start_from, 1], color='red', fill=True, warn_singular=False)
+        axes[i - start_from, 1].set_title(f'MSE Distribution for {i} Files (Excluding "{file_of_interest}")')
+        axes[i - start_from, 1].set_xlabel('MSE Value')
+        axes[i - start_from, 1].set_ylabel('Density')
+
+    plt.tight_layout()
+    plt.show()
