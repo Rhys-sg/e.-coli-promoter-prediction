@@ -209,19 +209,7 @@ def save_repeat_evalute_each_file(all_results, csv_path='Data/repeat_evalute_eac
 
     pd.DataFrame(to_save).to_csv(csv_path)
 
-def save_repeat_evalute_each_file_statistics(all_results, split_data, file_names):
-    data = {'File Name': [], 'Data Points' : [], 'Coefficient of Variation (Self)': [], 'Coefficient of Variation (All)': []}
 
-    def calc_CV(data):
-        return np.std(data) / np.mean(data)
-    
-    for file in file_names:
-        data['File Name'].append(file)
-        data['Data Points'].append(len(split_data[file]['X_train']))
-        data['Coefficient of Variation (Self)'].append(calc_CV([each[0] for each in all_results[file]]))
-        data['Coefficient of Variation (All)'].append(calc_CV([each[1] for each in all_results[file]]))
-    
-    pd.DataFrame(data).to_csv('Data/Figure 2.csv')
 
 def load_repeat_evalute_each_file(csv_path='Data/repeat_evalute_each_file.csv'):
     df = pd.read_csv(csv_path, index_col=0)
