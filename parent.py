@@ -197,11 +197,11 @@ def plot_repeat_evalute_each_file(file_names, all_results):
     plt.ylabel('Mean Squared Error (MSE)')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f'images/repeat_evalute_each_file.png')
-    plt.savefig('images/Figure 1.pdf', format='pdf')
+    plt.savefig(f'Images/repeat_evalute_each_file.png')
+    plt.savefig('Images/Figure 1.pdf', format='pdf')
     plt.show()
 
-def save_repeat_evalute_each_file(all_results, csv_path='repeat_evalute_each_file.csv'):
+def save_repeat_evalute_each_file(all_results, csv_path='Data/repeat_evalute_each_file.csv'):
     to_save = {}
     for key in all_results.keys():
         to_save[f'{key} (Self)'] = []
@@ -225,9 +225,9 @@ def save_repeat_evalute_each_file_statistics(all_results, split_data, file_names
         data['Coefficient of Variation (Self)'].append(calc_CV([each[0] for each in all_results[file]]))
         data['Coefficient of Variation (All)'].append(calc_CV([each[1] for each in all_results[file]]))
     
-    pd.DataFrame(data).to_csv('Figure 2.csv')
+    pd.DataFrame(data).to_csv('Data/Figure 2.csv')
 
-def load_repeat_evalute_each_file(csv_path='repeat_evalute_each_file.csv'):
+def load_repeat_evalute_each_file(csv_path='Data/repeat_evalute_each_file.csv'):
     df = pd.read_csv(csv_path, index_col=0)
     temp = {}
 
@@ -241,11 +241,11 @@ def load_repeat_evalute_each_file(csv_path='repeat_evalute_each_file.csv'):
 
     return temp
 
-def save_loss_values_to_csv(loss_values, filename='loss_values.csv'):
+def save_loss_values_to_csv(loss_values, filename='Data/loss_values.csv'):
     df = pd.DataFrame.from_dict(loss_values, orient='index', columns=['Training Data MSE', 'All Data MSE'])
     df.to_csv(filename)
 
-def read_loss_values_from_csv(filename='loss_values.csv'):
+def read_loss_values_from_csv(filename='Data/loss_values.csv'):
     df = pd.read_csv(filename, index_col=0)
     loss_values = df.to_dict(orient='index')
     return {key: list(value.values()) for key, value in loss_values.items()}
@@ -281,7 +281,7 @@ def plot_each_file_MSE_stacked(file_names, loss_values):
 
     plt.legend()
     plt.tight_layout()
-    plt.savefig('images/MSE for training vs all data.png')
+    plt.savefig('Images/MSE for training vs all data.png')
     plt.show()
 
 def plot_each_file_MSE_separate(file_names, loss_values):
@@ -346,12 +346,12 @@ def evaluate_file_combinations(file_names, split_data):
 
     return data_for_plot
 
-def save_data_for_plot_to_csv(data_for_plot, filename='data_comparison.csv'):
+def save_data_for_plot_to_csv(data_for_plot, filename='Data/data_comparison.csv'):
     df = pd.DataFrame(data_for_plot)
     df.columns = ['Number of Files', 'MSE', 'Name']
     df.to_csv(filename, index=False)
 
-def read_data_for_plot_from_csv(filename='data_comparison.csv'):
+def read_data_for_plot_from_csv(filename='Data/data_comparison.csv'):
     return pd.read_csv(filename).values
 
 def plot_each_file(file_names, loss_values):
@@ -382,7 +382,7 @@ def plot_each_file(file_names, loss_values):
     plt.xticks(x, sorted_file_names, rotation=45)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('images/all file combinations.png')
+    plt.savefig('Images/all file combinations.png')
     plt.show()
 
 def plot_file_combinations(data_for_plot):
@@ -396,7 +396,7 @@ def plot_file_combinations(data_for_plot):
     plt.scatter(num_files, loss_values, color='grey', s=50, alpha=0.5)
     plt.xlabel('Number of Files')
     plt.ylabel('log10(MSE)')
-    plt.savefig('images/all file combinations.png')
+    plt.savefig('Images/all file combinations.png')
     plt.show()
 
 def plot_individual_file_combinations(data_for_plot, file_names):
@@ -428,7 +428,7 @@ def plot_individual_file_combinations(data_for_plot, file_names):
         plt.xlabel('Number of Files')
         plt.ylabel('log10(MSE)')
         plt.legend()
-        plt.savefig(f'images/{file_name} file combinations.png')
+        plt.savefig(f'Images/{file_name} file combinations.png')
         plt.show()
 
 def plot_individual_file_combinations_grid(data_for_plot, file_names):
@@ -469,8 +469,8 @@ def plot_individual_file_combinations_grid(data_for_plot, file_names):
         ax.legend()
     
     # Save the entire 3x3 grid of plots
-    plt.savefig('images/Figure 2.png')
-    plt.savefig('images/Figure 2.pdf', format='pdf')
+    plt.savefig('Images/Figure 2.png')
+    plt.savefig('Images/Figure 2.pdf', format='pdf')
     plt.show()
 
 def plot_saliency_map_sequence(sequence, base_px=16, multiplier=1, model_filename='model.keras'):
@@ -507,7 +507,7 @@ def plot_saliency_map_sequence(sequence, base_px=16, multiplier=1, model_filenam
     display(HTML(html_content))
 
 
-def plot_saliency_map_grid(model_filename='model.keras', data_filename='LaFleur_supp.csv', i_start=0, i_end=20):
+def plot_saliency_map_grid(model_filename='model.keras', data_filename='Data/LaFleur_supp.csv', i_start=0, i_end=20):
     """
     Visualizes the saliency map of the CNN model for multiple sequences in a grid.
     By default, this uses model.keras, and the first 20 sequences in LaFleur_supp.csv.
