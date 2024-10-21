@@ -73,14 +73,10 @@ def evaluate_model(model, X_test, y_test):
     return loss
 
 def save_model(model, filename):
-    if not filename.endswith('.keras'):
-        filename += '.keras'
-    model.save('models/' + filename)
+    model.save(filename)
 
 def load_and_predict(filename, X):
-    if not filename.endswith('.keras'):
-        filename += '.keras'
-    model = load_model('../Models/' + filename)
+    model = load_model(filename)
     predictions_array = model.predict(np.array(X))[:, 0]
     return pd.DataFrame(predictions_array, columns=['Value'])
 
@@ -473,7 +469,7 @@ def plot_individual_file_combinations_grid(data_for_plot, file_names):
     plt.savefig('Images/Figure 2.pdf', format='pdf')
     plt.show()
 
-def plot_saliency_map_sequence(sequence, base_px=16, multiplier=1, model_filename='model.keras'):
+def plot_saliency_map_sequence(sequence, base_px=16, multiplier=1, model_filename='Models/model.keras'):
     """
     Visualizes the saliency map of the CNN model for a single sequence using a bar graph.
 
@@ -507,7 +503,7 @@ def plot_saliency_map_sequence(sequence, base_px=16, multiplier=1, model_filenam
     display(HTML(html_content))
 
 
-def plot_saliency_map_grid(model_filename='model.keras', data_filename='Data/LaFleur_supp.csv', i_start=0, i_end=20):
+def plot_saliency_map_grid(model_filename='Models/model.keras', data_filename='Data/LaFleur_supp.csv', i_start=0, i_end=20):
     """
     Visualizes the saliency map of the CNN model for multiple sequences in a grid.
     By default, this uses model.keras, and the first 20 sequences in LaFleur_supp.csv.
