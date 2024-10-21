@@ -44,11 +44,19 @@ def preprocess_sequences(X, max_length=None):
     padded_sequences = [padded_one_hot_encode('0' * (max_length - len(seq)) + seq) for seq in X]
     return np.array(padded_sequences), max_length
 
-def reshape_model_input(X):
-    return np.array([[x, x, x, x] for x in X.values]).reshape(-1, 1, 4)
+def get_training_data(file_path):
 
-def concatenate_inputs(array1, array2):
-    return np.concatenate((array1, array2), axis=1)
+    df = load_and_preprocess_data(file_path)
+    X, y = combine_columns(df)
+    X, max_length = preprocess_sequences(X)
+    return train_test_split(X, y, test_size=0.2, random_state=42)
+
+def decode_to_df(encoded_sequence):
+    mapping = {(1, 0, 0, 0): 'A', (0, 1, 0, 0): 'T', (0, 0, 1, 0): 'C', (0, 0, 0, 1): 'G', (0, 0, 0, 0): '0'}
+    data = []
+    for seq in encoded_sequence:
+        data.append(''.join([mapping[tuple(nucleotide)] for nucleotide in seq]))
+    return pd.DataFrame(data, columns=['Promoter Sequence'])
 
 def build_cnn_model(input_shape):
     model = Sequential()
