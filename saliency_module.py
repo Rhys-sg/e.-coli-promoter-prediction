@@ -60,24 +60,42 @@ def generate_saliency_map(model, sequence, target_class_index):
     return gradients.numpy()
 
 
-def plot_saliency_map_grid(model_filename='Models/model.keras', data_filename='Data/LaFleur_supp.csv', data=None, i_start=0, i_end=None):
+def plot_saliency_map_grid(
+    model_filename='Models/model.keras',
+    data_filename='Data/LaFleur_supp.csv',
+    data=None,
+    i_start=0,
+    i_end=None,
+    relative=False,
+    scaler=1
+):
 
     model = load_model(model_filename)
-    
+
     if data is None or data.empty:
         data = pd.read_csv(data_filename)
-    
-    # Select the desired sequence data
+
     if i_end is None:
         i_end = len(data)
     data = data.loc[i_start:i_end-1, 'Promoter Sequence']
-    
-    # Preprocess sequences
+
     data, max_length = main_module.preprocess_sequences(data, 150)
     target_class_index = 0
-    
-    stacked_saliency_map = np.vstack([generate_saliency_map(model, sequence, target_class_index) for sequence in data])
-    plt.imshow(stacked_saliency_map, cmap='magma', aspect='auto')
+
+    # Function to compute scaled saliency maps if 'relative' is True
+    def compute_scaled_saliency(sequence):
+        saliency = generate_saliency_map(model, sequence, target_class_index)
+        if relative:
+            prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
+            saliency = saliency / (prediction * scaler)
+        return saliency
+
+    saliency_maps = [compute_scaled_saliency(sequence) for sequence in data]
+    stacked_saliency_map = np.vstack(saliency_maps)
+    vmin = np.min(stacked_saliency_map)
+    vmax = np.max(stacked_saliency_map)
+
+    plt.imshow(stacked_saliency_map, cmap='magma', aspect='auto', vmin=vmin, vmax=vmax)
     plt.xticks([])
     plt.yticks([])
     plt.tight_layout()
