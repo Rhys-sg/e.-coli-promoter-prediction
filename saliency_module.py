@@ -102,7 +102,7 @@ def plot_saliency_map_grid(
     plt.show()
 
 
-def generate_sequences(input_csv='Data/LaFleur.csv', output_csv='Data/generated_sequences.csv', X=100, seed=None):
+def generate_sequences(input_csv='Data/LaFleur.csv', output_csv='Data/Saliency/generated_sequences.csv', X=100, seed=None):
     df = pd.read_csv(input_csv)
     columns = ['UP', 'h35', 'spacs', 'h10', 'disc', 'ITR']
 
