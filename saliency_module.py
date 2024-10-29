@@ -9,13 +9,6 @@ from tensorflow.keras.models import load_model # type: ignore
 import main_module
 
 def plot_saliency_map_sequence(sequence, base_px=16, multiplier=1, model_filename='Models/model.keras'):
-    """
-    Visualizes the saliency map of the CNN model for a single sequence using a bar graph.
-
-    Parameters:
-     - model_filename (str): The filename of the model to load.
-     - sequence (str): The sequence to visualize.
-    """
     
     model = load_model(model_filename)
     encoded_sequence, max_length = main_module.preprocess_sequences([sequence], 150)
@@ -65,10 +58,10 @@ def plot_saliency_map_grid(
     data=None,
     i_start=0,
     i_end=None,
-    relative=False,
-    scaler=1
+    relative=True,
+    scaler=5,
+    sort_by_prediction=True
 ):
-
     model = load_model(model_filename)
 
     if data is None or data.empty:
@@ -81,15 +74,23 @@ def plot_saliency_map_grid(
     data, max_length = main_module.preprocess_sequences(data, 150)
     target_class_index = 0
 
-    # Function to compute scaled saliency maps if 'relative' is True
-    def compute_scaled_saliency(sequence):
+    # Function to compute predictions and saliency maps
+    def compute_prediction_and_saliency(sequence):
+        prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
         saliency = generate_saliency_map(model, sequence, target_class_index)
         if relative:
-            prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
             saliency = saliency / (prediction * scaler)
-        return saliency
+        return prediction, saliency
 
-    saliency_maps = [compute_scaled_saliency(sequence) for sequence in data]
+    predictions_and_saliency = [compute_prediction_and_saliency(seq) for seq in data]
+
+    # Optionally sort by prediction
+    if sort_by_prediction:
+        predictions_and_saliency.sort(key=lambda x: x[0]) # Low prediction (high expression) to high prediction (for reverse, add "reverse=True")
+
+
+    saliency_maps = [saliency for _, saliency in predictions_and_saliency]
+
     stacked_saliency_map = np.vstack(saliency_maps)
     vmin = np.min(stacked_saliency_map)
     vmax = np.max(stacked_saliency_map)
@@ -101,7 +102,10 @@ def plot_saliency_map_grid(
     plt.show()
 
 
-def generate_sequences(input_csv='Data/LaFleur.csv', output_csv='Data/Saliency/generated_sequences.csv', X=100, seed=None):
+def generate_sequences(input_csv='Data/LaFleur.csv', output_csv='Data/Saliency/generated_sequences.csv', n=100, seed=None):
+    if seed is not None:
+        random.seed(seed)
+
     df = pd.read_csv(input_csv)
     columns = ['UP', 'h35', 'spacs', 'h10', 'disc', 'ITR']
 
@@ -113,14 +117,10 @@ def generate_sequences(input_csv='Data/LaFleur.csv', output_csv='Data/Saliency/g
     known_sequences = {(data['UP'], data['h35'], data['spacs'], data['h10'], data['disc'], data['ITR']) for _, data in df.iterrows()}
 
     # Generate X sequences not in known_sequences
-    def generate_sequences(df, sorted_entries, known_sequences, X, seed=seed):
+    def _generate_sequences(df, sorted_entries, known_sequences, n, seed=seed):
         generated_sequences = set()
         
-        # Set the random seed if provided
-        if seed is not None:
-            random.seed(seed)
-
-        while len(generated_sequences) < X:
+        while len(generated_sequences) < n:
             new_sequence = tuple(
                 random.choice(sorted_entries[column][::-1]) for column in df.columns
             )
@@ -133,8 +133,41 @@ def generate_sequences(input_csv='Data/LaFleur.csv', output_csv='Data/Saliency/g
 
         return generated_sequences_df
 
-    # Generate 5 new sequences not in known_sequences
-    generated_sequences_df = generate_sequences(df, sorted_entries, known_sequences, X, seed)
+    generated_sequences_df = _generate_sequences(df, sorted_entries, known_sequences, n, seed)
     generated_sequences_df.to_csv(output_csv, index=False)
 
     return generated_sequences_df
+
+def generate_spacers(
+    upstream_promoter='TTTTCTATCTACGTACTTGACA',
+    downstream_promoter='TATAATAAACTTCCTCTACCTTAGTTTGTACGTT',
+    output_csv='Data/Saliency/generated_spacers.csv',
+    n=50,
+    repeat_spacer='CTATTTCCTATTTCTCT',
+    prefix_nucleotide=None,
+):
+    data = []
+    i = 0
+
+    if prefix_nucleotide is not None:
+        while i < n:
+            spacer = prefix_nucleotide * i
+            sequence = upstream_promoter + spacer + downstream_promoter
+            if len(sequence) >= 150:
+                break
+            data.append(sequence)
+            i+=1
+    else:
+        spacer = ''
+        while i < n:
+            spacer += repeat_spacer[len(spacer) % len(repeat_spacer)]
+            sequence = upstream_promoter + spacer + downstream_promoter
+            if len(sequence) >= 150:
+                break
+            data.append(sequence)
+            i += 1
+
+    data_df = pd.DataFrame(data, columns=['Promoter Sequence'])
+    data_df.to_csv(output_csv, index=False)
+
+    return data_df
