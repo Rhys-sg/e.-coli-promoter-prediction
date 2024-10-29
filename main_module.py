@@ -6,13 +6,9 @@ from sklearn.model_selection import train_test_split
 from keras.models import Sequential, load_model
 from keras.layers import Conv1D, MaxPooling1D, Flatten, Dense
 from keras.optimizers import Adam
-import seaborn as sns
-import matplotlib.pyplot as plt
-from scipy.stats import ttest_ind
 import os
 import sys
-from IPython.display import display, HTML
-from itertools import combinations, chain
+import glob
 
 class SuppressOutput:
     def __enter__(self):
@@ -25,6 +21,13 @@ class SuppressOutput:
 
 def load_and_preprocess_data(file_path):
     df = pd.read_csv(file_path)
+    if 'Normalized Observed log(TX/Txref)' in df.columns:
+        return df
+    
+    if 'Normalized Expression' in df.columns:
+        df['Normalized Observed log(TX/Txref)'] = df['Normalized Expression']
+        return df
+    
     df['Normalized Observed log(TX/Txref)'] = MinMaxScaler().fit_transform(df[['Observed log(TX/Txref)']])
     return df
 
@@ -50,6 +53,10 @@ def get_training_data(file_path):
     X, y = combine_columns(df)
     X, max_length = preprocess_sequences(X)
     return train_test_split(X, y, test_size=0.2, random_state=42)
+
+def get_training_data_by_file(dir):
+    files = glob.glob(f'{dir}*.csv')
+    return {file.split('\\')[-1].replace('.csv', '').replace('_', ' ') : get_training_data(file) for file in files}
 
 def decode_to_df(encoded_sequence):
     mapping = {(1, 0, 0, 0): 'A', (0, 1, 0, 0): 'T', (0, 0, 1, 0): 'C', (0, 0, 0, 1): 'G', (0, 0, 0, 0): '0'}

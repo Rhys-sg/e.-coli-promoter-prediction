@@ -3,8 +3,9 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from IPython.display import display, HTML
-import random
 from tensorflow.keras.models import load_model # type: ignore
+import random
+import math
 
 import main_module
 
@@ -51,7 +52,6 @@ def generate_saliency_map(model, sequence, target_class_index):
     
     return gradients.numpy()
 
-
 def plot_saliency_map_grid(
     model_filename='Models/model.keras',
     data_filename='Data/LaFleur_supp.csv',
@@ -60,7 +60,9 @@ def plot_saliency_map_grid(
     i_end=None,
     relative=True,
     scaler=5,
-    sort_by_prediction=True
+    sort_by_prediction=True,
+    title=None,
+    ax=None
 ):
     model = load_model(model_filename)
 
@@ -86,8 +88,7 @@ def plot_saliency_map_grid(
 
     # Optionally sort by prediction
     if sort_by_prediction:
-        predictions_and_saliency.sort(key=lambda x: x[0]) # Low prediction (high expression) to high prediction (for reverse, add "reverse=True")
-
+        predictions_and_saliency.sort(key=lambda x: x[0])
 
     saliency_maps = [saliency for _, saliency in predictions_and_saliency]
 
@@ -95,9 +96,44 @@ def plot_saliency_map_grid(
     vmin = np.min(stacked_saliency_map)
     vmax = np.max(stacked_saliency_map)
 
-    plt.imshow(stacked_saliency_map, cmap='magma', aspect='auto', vmin=vmin, vmax=vmax)
-    plt.xticks([])
-    plt.yticks([])
+    # Plot on the provided subplot axis
+    if not ax:
+        plt.imshow(stacked_saliency_map, cmap='magma', aspect='auto', vmin=vmin, vmax=vmax)
+        plt.xticks([])
+        plt.yticks([])
+        plt.tight_layout()
+        if title is not None:
+            plt.title(title)
+        plt.show()
+    else:
+        im = ax.imshow(stacked_saliency_map, cmap='magma', aspect='auto', vmin=vmin, vmax=vmax)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        if title is not None:
+            ax.set_title(title)
+
+        return im
+
+
+def plot_saliency_map_from_train_test_by_file(train_test_by_file):
+    num_files = len(train_test_by_file)
+    grid_size = math.ceil(math.sqrt(num_files))  # Ensure a square-like grid (3x3 if 9 files)
+
+    fig, axes = plt.subplots(grid_size, grid_size, figsize=(15, 15))
+    axes = axes.flatten()  # Flatten the 2D axes array to easily index them
+
+    for idx, (file, train_test) in enumerate(train_test_by_file.items()):
+        X_train, X_test, y_train, y_test = train_test
+        X_test_data = main_module.decode_to_df(X_test)
+
+        # Plot the saliency map on the corresponding subplot
+        ax = axes[idx]
+        plot_saliency_map_grid(data=X_test_data, i_end=100, title=file, ax=ax)
+
+    # Hide any unused subplots (if the grid is larger than the number of files)
+    for idx in range(len(train_test_by_file), len(axes)):
+        axes[idx].axis('off')
+
     plt.tight_layout()
     plt.show()
 
