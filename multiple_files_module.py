@@ -109,70 +109,6 @@ def get_file_mse_effect(file_names, data_for_plot):
     return file_mse, mse_effect
 
 
-def plot_mse_effect_with_ttest(file_names, data_for_plot, file_of_interest, start_from=1, end_at=None):
-
-    file_mse, mse_effect = get_file_mse_effect(file_names, data_for_plot)
-
-    # 1. Initialize lists to store MSE effects
-    include_mse_effect = []
-    exclude_mse_effect = []
-
-    # 2. Calculate MSE differences for combinations including and excluding the file_of_interest
-    for key, value in file_mse.items():
-        for file in file_names:
-            if file in key:
-                continue
-            next_key = tuple(sorted(key + (file,)))
-            mse_difference = value - file_mse[next_key]
-
-            if file_of_interest in key:
-                include_mse_effect.append((len(key), mse_difference))
-            else:
-                exclude_mse_effect.append((len(key), mse_difference))
-
-    # 3. Organize MSE effects by number of files in the combination
-    include_mse_by_num_files = {i: [] for i in range(1, len(file_names))}
-    exclude_mse_by_num_files = {i: [] for i in range(1, len(file_names))}
-
-    for num_files, mse_diff in include_mse_effect:
-        include_mse_by_num_files[num_files].append(mse_diff)
-
-    for num_files, mse_diff in exclude_mse_effect:
-        exclude_mse_by_num_files[num_files].append(mse_diff)
-
-    # 4. Plotting the results
-    end_at = end_at or len(file_names) - 1
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
-
-    for i in range(start_from, end_at + 1):
-        include_diffs = include_mse_by_num_files[i]
-        exclude_diffs = exclude_mse_by_num_files[i]
-
-        # T-test for statistical difference
-        if len(include_diffs) > 1 and len(exclude_diffs) > 1:
-            t_stat, p_value = ttest_ind(include_diffs, exclude_diffs, equal_var=False)
-            significance = " (Significant)" if p_value < 0.05 else ""
-            print(f"{i} Files: t-stat = {t_stat:.4f}, p = {p_value:.4f}{significance}")
-        else:
-            print(f"{i} Files: Not enough data for t-test.")
-
-        sns.kdeplot(include_diffs, ax=axes[0], label=f'{i} Files', fill=True, warn_singular=False)
-        sns.kdeplot(exclude_diffs, ax=axes[1], label=f'{i} Files', fill=True, warn_singular=False)
-
-    axes[0].set_title(f'MSE Differences (Including "{file_of_interest}")')
-    axes[0].set_xlabel('MSE Difference')
-    axes[0].set_ylabel('Density')
-    axes[0].legend(title='Number of Files')
-
-    axes[1].set_title(f'MSE Differences (Excluding "{file_of_interest}")')
-    axes[1].set_xlabel('MSE Difference')
-    axes[1].set_ylabel('Density')
-    axes[1].legend(title='Number of Files')
-
-    plt.tight_layout()
-    plt.show()
-
-
 def plot_mse_distribution_with_ttest(file_names, data_for_plot, file_of_interest, start_from=1, end_at=None):
 
     file_mse, mse_effect = get_file_mse_effect(file_names, data_for_plot)
@@ -196,13 +132,20 @@ def plot_mse_distribution_with_ttest(file_names, data_for_plot, file_of_interest
         exclude_mse_by_num_files[num_files].append(mse_value)
 
     end_at = end_at or len(file_names) - 1
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
 
-    for i in range(start_from, end_at + 1):
+    num_plots = end_at - start_from + 1
+    n_cols = 2
+    n_rows = (num_plots + n_cols - 1) // n_cols
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 6, n_rows * 5))
+
+    axes = axes.flatten()
+
+    for idx, i in enumerate(range(start_from, end_at + 1)):
         include_mse = include_mse_by_num_files[i]
         exclude_mse = exclude_mse_by_num_files[i]
 
-        # T-test for statistical difference
+        # Perform T-test if both distributions have enough data
         if len(include_mse) > 1 and len(exclude_mse) > 1:
             t_stat, p_value = ttest_ind(include_mse, exclude_mse, equal_var=False)
             significance = " (Significant)" if p_value < 0.05 else ""
@@ -210,21 +153,22 @@ def plot_mse_distribution_with_ttest(file_names, data_for_plot, file_of_interest
         else:
             print(f"{i} Files: Not enough data for t-test.")
 
-        sns.kdeplot(include_mse, ax=axes[0], label=f'{i} Files', fill=True, warn_singular=False)
-        sns.kdeplot(exclude_mse, ax=axes[1], label=f'{i} Files', fill=True, warn_singular=False)
+        sns.kdeplot(include_mse, label='Including', fill=True, warn_singular=False, ax=axes[idx])
+        sns.kdeplot(exclude_mse, label='Excluding', fill=True, warn_singular=False, ax=axes[idx])
 
-    axes[0].set_title(f'MSE Distributions (Including "{file_of_interest}")')
-    axes[0].set_xlabel('MSE Value')
-    axes[0].set_ylabel('Density')
-    axes[0].legend(title='Number of Files')
+        axes[idx].set_title(f'MSE Distribution for {i} Files')
+        axes[idx].set_xlabel('MSE Value')
+        axes[idx].set_ylabel('Density')
 
-    axes[1].set_title(f'MSE Distributions (Excluding "{file_of_interest}")')
-    axes[1].set_xlabel('MSE Value')
-    axes[1].set_ylabel('Density')
-    axes[1].legend(title='Number of Files')
+        # Set x-axis limits
+        axes[idx].set_xlim(-7, 0)
 
+        axes[idx].legend(title='Condition')
+
+    # Adjust layout to prevent overlap
     plt.tight_layout()
     plt.show()
+
 
 
 def save_distribution_pvalues(file_names, data_for_plot, start_from=1, end_at=None, output_filename='Data/Multiple Files/p_values.csv'):
@@ -254,5 +198,6 @@ def save_distribution_pvalues(file_names, data_for_plot, start_from=1, end_at=No
     # Convert the results to a DataFrame
     df = pd.DataFrame(p_value_results).T.reset_index()
     df.rename(columns={'index': 'File Name'}, inplace=True)
+    df.sort_values('P-Value 3 Files', inplace=True)
     df.to_csv(output_filename, index=False)
     return df
