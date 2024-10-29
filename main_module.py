@@ -3,9 +3,9 @@ import numpy as np
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
-from keras.models import Sequential, load_model
-from keras.layers import Conv1D, MaxPooling1D, Flatten, Dense
-from keras.optimizers import Adam
+from keras.models import Sequential, load_model # type: ignore
+from keras.layers import Conv1D, MaxPooling1D, Flatten, Dense # type: ignore
+from keras.optimizers import Adam # type: ignore
 import os
 import sys
 import glob
