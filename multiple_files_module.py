@@ -45,6 +45,7 @@ def save_data_for_plot_to_csv(data_for_plot, filename='Data/data_comparison.csv'
 def read_data_for_plot_from_csv(filename='Data/data_comparison.csv'):
     return pd.read_csv(filename).values
 
+
 def plot_individual_file_combinations_grid(data_for_plot, file_names):
     # Extract data for plotting
     num_files = [entry[0] for entry in data_for_plot]
@@ -108,11 +109,10 @@ def get_file_mse_effect(file_names, data_for_plot):
     return file_mse, mse_effect
 
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.stats import ttest_ind
+def plot_mse_effect_with_ttest(file_names, data_for_plot, file_of_interest, start_from=1, end_at=None):
 
-def plot_mse_effect_with_ttest(file_mse, file_names, file_of_interest, start_from=1, end_at=None):
+    file_mse, mse_effect = get_file_mse_effect(file_names, data_for_plot)
+
     # 1. Initialize lists to store MSE effects
     include_mse_effect = []
     exclude_mse_effect = []
@@ -172,7 +172,11 @@ def plot_mse_effect_with_ttest(file_mse, file_names, file_of_interest, start_fro
     plt.tight_layout()
     plt.show()
 
-def plot_mse_distribution_with_ttest(file_mse, file_names, file_of_interest, start_from=1, end_at=None):
+
+def plot_mse_distribution_with_ttest(file_names, data_for_plot, file_of_interest, start_from=1, end_at=None):
+
+    file_mse, mse_effect = get_file_mse_effect(file_names, data_for_plot)
+
     include_mse_values = []
     exclude_mse_values = []
 
@@ -221,3 +225,34 @@ def plot_mse_distribution_with_ttest(file_mse, file_names, file_of_interest, sta
 
     plt.tight_layout()
     plt.show()
+
+
+def save_distribution_pvalues(file_names, data_for_plot, start_from=1, end_at=None, output_filename='Data/Multiple Files/p_values.csv'):
+
+    file_mse, mse_effect = get_file_mse_effect(file_names, data_for_plot)
+
+    p_value_results = {file_name: {} for file_name in file_names}
+    mse_by_num_files = {i: [] for i in range(1, len(file_names) + 1)}
+
+    for key, value in file_mse.items():
+        mse_by_num_files[len(key)].append(value)
+
+    end_at = end_at or len(file_names)
+
+    for file_name in file_names:
+        for i in range(start_from, end_at + 1):
+            include_mse = [value for key, value in file_mse.items() if file_name in key and len(key) == i]
+            exclude_mse = [value for key, value in file_mse.items() if file_name not in key and len(key) == i]
+
+            # Perform t-test if both lists have more than one value
+            if len(include_mse) > 1 and len(exclude_mse) > 1:
+                t_stat, p_value = ttest_ind(include_mse, exclude_mse, equal_var=False)
+                p_value_results[file_name][f'P-Value {i} Files'] = p_value
+            else:
+                p_value_results[file_name][f'P-Value {i} Files'] = None
+
+    # Convert the results to a DataFrame
+    df = pd.DataFrame(p_value_results).T.reset_index()
+    df.rename(columns={'index': 'File Name'}, inplace=True)
+    df.to_csv(output_filename, index=False)
+    return df
