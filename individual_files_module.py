@@ -87,23 +87,26 @@ def save_repeat_evalute_each_file_statistics(all_results, split_data, file_names
 def plot_repeat_evalute_each_file(file_names, all_results):
     # Calculate the average and coefficient of variation for each file
     averaged_results = {file: np.mean(all_results[file], axis=0) for file in file_names}
+    averaged_training_data = {file: result[0] for file, result in averaged_results.items()}
+    averaged_all_data = {file: result[1] for file, result in averaged_results.items()}
     CV_training_data = {file: np.std([result[0] for result in all_results[file]]) / np.mean([result[0] for result in all_results[file]]) for file in file_names}
     CV_all = {file: np.std([result[1] for result in all_results[file]]) / np.mean([result[1] for result in all_results[file]]) for file in file_names}
 
     # Prepare the data
-    sorted_file_names = sorted(file_names, key=lambda file: averaged_results[file][1])
-    x = np.arange(len(sorted_file_names))
+    training_data_order = sorted(file_names, key=lambda file: averaged_training_data[file])
+    all_data_order = sorted(file_names, key=lambda file: averaged_all_data[file])
+    x = np.arange(len(all_data_order))
     bar_width = 0.35
 
     # Extracting the individual and average results
-    training_data_mse = {file: [result[0] for result in all_results[file]] for file in sorted_file_names}
-    all_data_mse = {file: [result[1] for result in all_results[file]] for file in sorted_file_names}
-    avg_training_data = [averaged_results[file][0] for file in sorted_file_names]
-    avg_all_data = [averaged_results[file][1] for file in sorted_file_names]
+    training_data_mse = {file: [result[0] for result in all_results[file]] for file in all_data_order}
+    all_data_mse = {file: [result[1] for result in all_results[file]] for file in all_data_order}
+    avg_training_data = [averaged_training_data[file] for file in all_data_order]
+    avg_all_data = [averaged_all_data[file] for file in all_data_order]
 
     plt.figure(figsize=(10, 6))
 
-    for i, file in enumerate(sorted_file_names):
+    for i, file in enumerate(all_data_order):
         plt.scatter([x[i] - bar_width / 2] * len(training_data_mse[file]), training_data_mse[file], color='skyblue', label='Training Data MSE' if i == 0 else "")
         plt.scatter([x[i] + bar_width / 2] * len(all_data_mse[file]), all_data_mse[file], color='lightgreen', label='All Data MSE' if i == 0 else "")
         
@@ -116,7 +119,7 @@ def plot_repeat_evalute_each_file(file_names, all_results):
         plt.text(x[i] + bar_width*1.1, avg_all_data[i], f'{int(CV_all[file]*100)}%', ha='center', va='center', color='black', fontsize=8)
 
     # Formatting
-    plt.xticks(x, sorted_file_names, rotation=45, ha='right', rotation_mode='anchor')
+    plt.xticks(x, all_data_order, rotation=45, ha='right', rotation_mode='anchor')
     plt.xlabel('Files')
     plt.ylabel('Mean Squared Error (MSE)')
     plt.legend()
@@ -125,62 +128,148 @@ def plot_repeat_evalute_each_file(file_names, all_results):
     plt.savefig('Images/Figure 1.pdf', format='pdf')
     plt.show()
 
-    return sorted_file_names
+    return all_data_order, training_data_order, averaged_training_data, averaged_all_data, CV_training_data, CV_all
 
 '''
-Plotting for MSE analysis
+The next set of functions are used for the file comparison and analysis
 '''
-def file_bar_chart(data, order, y_label, title):
-    _plot_file_data('bar', data, order, y_label, title)
 
-def file_box_plot(data, order, y_label, title):
-    _plot_file_data('box', data, order, y_label, title)
+def add_to_df(df, dictionary):
+    return [dictionary[file] for file in df['File Name']]
 
-def _plot_file_data(plot, data, order, y_label, title):
-    ordered_data = [data.get(file, 0) for file in order]
+'''
+Plotting functions for file comparison
+'''
+
+def _check_labels(y_axis, y_label, x_axis, x_label, title):
+    if y_label is None:
+        y_label = y_axis
+    if x_label is None:
+        x_label = x_axis
+    if title is None:
+        title = f'{y_label} vs {x_label}'
+    return y_label, x_label, title
+
+def plot_barchart(df, y_axis, y_label=None, x_axis='File Name', x_label=None, title=None, color='skyblue'):
+    y_label, x_label, title = _check_labels(y_axis, y_label, x_axis, x_label, title)
     plt.figure(figsize=(10, 6))
-    
-    if plot == 'bar':
-        plt.bar(order, ordered_data, color='skyblue', width=0.35)
-        # Check if there are any negative values and flip the y-axis if necessary
-        if any(value < 0 for value in ordered_data):
-            plt.gca().invert_yaxis()
-    elif plot == 'box':
-        plt.boxplot(ordered_data, labels=order, patch_artist=True, boxprops=dict(facecolor='skyblue'))
-    
+    plt.bar(df[x_axis], df[y_axis], color=color, width=0.35)
+    if any(value < 0 for value in df[y_axis]):
+        plt.gca().invert_yaxis()
     plt.title(title, fontsize=16)
-    plt.xlabel('File Name', fontsize=14)
+    plt.xlabel(x_label, fontsize=14)
     plt.ylabel(y_label, fontsize=14)
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
     plt.show()
 
-def plot_pairwise_file_distance(df, n=10, order=None, pad=True, exclude_self=False, function=None):
-    if order is not None:
-        df = df[df['File Name'].isin(order)]
-        file_names = order
+def _dynamic_text_labels(x_pos, y_pos, x_min, x_max, y_min, y_max):
+    if x_pos < x_min + (x_max - x_min) * 0.05:
+        ha = 'left'
+    elif x_pos > x_max - (x_max - x_min) * 0.05:
+        ha = 'right'
     else:
-        file_names = df['File Name'].unique()
-    heatmap_data = np.zeros((len(file_names), len(file_names)))
+        ha = 'center'
+    if y_pos < y_min + (y_max - y_min) * 0.05:
+        va = 'bottom'
+    elif y_pos > y_max - (y_max - y_min) * 0.05:
+        va = 'top'
+    else:
+        va = 'center'
+    return ha, va
 
-    for i, file1 in enumerate(file_names):
-        seqs_file1 = df[df['File Name'] == file1]['Promoter Sequence'].sample(n=min(n, len(df[df['File Name'] == file1]))).tolist()
-        for j, file2 in enumerate(file_names):
-            if i > j:
-                continue
-            if exclude_self and i == j:
-                continue
-            seqs_file2 = df[df['File Name'] == file2]['Promoter Sequence'].sample(n=min(n, len(df[df['File Name'] == file2]))).tolist()
-            combined_seqs = seqs_file1 + seqs_file2
-            avg_hamming = _average_pairwise_distance(combined_seqs, function)
-            heatmap_data[i, j] = avg_hamming
-            heatmap_data[j, i] = avg_hamming
+def _adjust_text_positions(texts, offsets, x_min, x_max, y_min, y_max):
+    for i, (text, offset) in enumerate(zip(texts, offsets)):
+        while any(
+            text.get_window_extent().overlaps(other.get_window_extent())
+            for j, other in enumerate(texts)
+            if i != j
+        ):
+            # Find the x-coordinates of the current and other texts
+            text_x = text.get_position()[0]
+            other_xs = [
+                other.get_position()[0]
+                for j, other in enumerate(texts)
+                if i != j and text.get_window_extent().overlaps(other.get_window_extent())
+            ]
 
+            # Adjust position to resolve overlap
+            if text_x < min(other_xs, default=x_max):
+                offset[0] -= (x_max - x_min) * 0.005  # Move left
+            elif text_x > max(other_xs, default=x_min):
+                offset[0] += (x_max - x_min) * 0.005  # Move right
+            text.set_position((offset[0], text.get_position()[1]))
+
+
+def plot_scatterplot(df, y_axis, x_axis, grouping='File Names', y_label=None, x_label=None, title=None, color='skyblue'):
+    y_label, x_label, title = _check_labels(y_axis, y_label, x_axis, x_label, title)
+    plt.figure(figsize=(10, 6))
+    
+    if 'Training' in y_axis or 'Training' in x_axis:
+        color = 'skyblue'
+    elif 'All' in y_axis or 'All' in x_axis:
+        color = 'lightgreen'
+
+    # Plot the scatter before adding the labels
+    for i, row in df.iterrows():
+        plt.scatter(row[x_axis], row[y_axis], color=color)
+
+    # Find the limits of the plot
+    x_min, x_max = plt.xlim()
+    y_min, y_max = plt.ylim()
+    y_offset = (y_max - y_min) * 0.01
+
+    # Add the labels to the scatter plot
+    texts = []
+    offsets = []
+    for i, row in df.iterrows():
+        x_pos = row[x_axis]
+        y_pos = row[y_axis] + y_offset
+        label = str(row[grouping])
+        ha, _ = _dynamic_text_labels(x_pos, y_pos, x_min, x_max, y_min, y_max)
+        if any(value < 0 for value in df[y_axis]):
+            va='top'
+        else:
+            va='bottom'
+        text = plt.text(x_pos, y_pos, label, fontsize=9, ha=ha, va=va)
+        texts.append(text)
+        offsets.append([x_pos, y_pos])
+
+    # Adjust text positions to avoid overlap
+    _adjust_text_positions(texts, offsets, x_min, x_max, y_min, y_max)
+
+    if any(value < 0 for value in df[y_axis]):
+        plt.gca().invert_yaxis()
+    plt.title(title, fontsize=16)
+    plt.xlabel(x_label, fontsize=14)
+    plt.ylabel(y_label, fontsize=14)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+
+def plot_boxplot(df, y_axis, y_label=None, x_axis='File Name', x_label=None,  title=None, color='skyblue'):
+    y_label, x_label, title = _check_labels(y_axis, y_label, x_axis, x_label, title)
+    plt.figure(figsize=(10, 6))
+    plt.boxplot(df[y_axis], labels=df[x_axis], patch_artist=True, boxprops=dict(facecolor=color))
+    if any(any(value < 0 for value in values) for values in df[y_axis]):
+        plt.gca().invert_yaxis()
+    plt.title(title, fontsize=16)
+    plt.xlabel(x_label, fontsize=14)
+    plt.ylabel(y_label, fontsize=14)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+
+def plot_heatmap(df, y_label='File Name', x_label='File Name', title=None, flip_y=True, cmap='coolwarm'):
+    if title is None:
+        title = f'Heatmap of {y_label} vs {x_label}'
     plt.figure(figsize=(10, 8))
-    sns.heatmap(heatmap_data, xticklabels=file_names, yticklabels=file_names, annot=True, fmt=".2f", cmap="coolwarm")
-    plt.title('Average Pairwise Distance', fontsize=16)
-    plt.xlabel('File Name', fontsize=14)
-    plt.ylabel('File Name', fontsize=14)
+    sns.heatmap(df, cmap=cmap, annot=True, fmt=".2f")
+    if flip_y:
+        plt.gca().invert_yaxis()
+    plt.title(title, fontsize=16)
+    plt.xlabel(x_label, fontsize=14)
+    plt.ylabel(y_label, fontsize=14)
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
     plt.show()
@@ -216,9 +305,8 @@ def multiple_bar_chart(data, order, y_label, title, colors=None, normalize=True)
 
 
 '''
-Data Analysis for above plotting functions
+Data Analysis for file comparison
 '''
-
 def get_file_sequence_counts(df):
     return df['File Name'].value_counts().to_dict()
 
@@ -228,8 +316,31 @@ def get_promoter_sequence_lengths(df):
 def get_observed_expressions(df):
     return df.groupby('File Name')['Observed log(TX/Txref)'].apply(lambda x: x.tolist()).to_dict()
 
-def get_inter_file_variance(df, normalize=True):
-    return df.groupby('File Name').apply(lambda x: _calculate_inter_variance(x, normalize)).to_dict()
+def get_inter_file_entropy(df, normalize=True):
+    return df.groupby('File Name').apply(lambda x: _calculate_average_entropy(x, normalize)).to_dict()
+
+def get_pairwise_file_distance(df, n=10, order=None, pad=True, exclude_self=False, function=None):
+    if order is not None:
+        df = df[df['File Name'].isin(order)]
+        file_names = order
+    else:
+        file_names = df['File Name'].unique()
+    heatmap_data = np.zeros((len(file_names), len(file_names)))
+
+    for i, file1 in enumerate(file_names):
+        seqs_file1 = df[df['File Name'] == file1]['Promoter Sequence'].sample(n=min(n, len(df[df['File Name'] == file1]))).tolist()
+        for j, file2 in enumerate(file_names):
+            if i > j:
+                continue
+            if exclude_self and i == j:
+                continue
+            seqs_file2 = df[df['File Name'] == file2]['Promoter Sequence'].sample(n=min(n, len(df[df['File Name'] == file2]))).tolist()
+            combined_seqs = seqs_file1 + seqs_file2
+            avg_hamming = _average_pairwise_distance(combined_seqs, function)
+            heatmap_data[i, j] = avg_hamming
+            heatmap_data[j, i] = avg_hamming
+
+    return pd.DataFrame(heatmap_data, index=file_names, columns=file_names)
 
 def get_average_pairwise_distances(df, n=10, pad=True, exclude_self=False, function=None, normalize=False):
     file_names = df['File Name'].unique()
@@ -255,6 +366,7 @@ def get_average_pairwise_distances(df, n=10, pad=True, exclude_self=False, funct
         pairwise_distances = {file: pairwise_distances[file]/max_distance for file in file_names}
 
     return pairwise_distances
+    
 
 def plot_metric_mse(data, file_order, all_results, training_data=True, all_data=True):
     comiled_data = {}
@@ -313,6 +425,30 @@ def _calculate_inter_variance(df, normalize, pad=True):
         variances.append(1 - (variance / max_variance))
 
     return sum(variances) / len(variances)
+
+def _calculate_average_entropy(df, normalize):
+    df['Promoter Sequence'] = df['Promoter Sequence'].apply(lambda x: x.upper())
+
+    # Pad the sequences if necessary
+    max_length = max(df['Promoter Sequence'].apply(lambda x: len(x)))
+    if len(df['Promoter Sequence'].apply(lambda x: len(x)).unique()) > 1:
+        df['Promoter Sequence'] = df['Promoter Sequence'].apply(lambda x: x.zfill(max_length))
+
+    entropies = []
+    for index in range(max_length):
+        frequency = {'A': 0, 'C': 0, 'G': 0, 'T': 0, '0': 0}
+        for sequence in df['Promoter Sequence']:
+            frequency[sequence[index]] += 1
+        total_count = sum(frequency.values())
+        probabilities = [freq / total_count for freq in frequency.values() if freq > 0]
+        entropy = -sum(p * np.log2(p) for p in probabilities)
+        entropies.append(entropy)
+
+    entropy = sum(entropies)
+    if normalize:
+        entropy /= max_length
+
+    return entropy
 
 def _average_pairwise_distance(sequences, function):
     distances = []
