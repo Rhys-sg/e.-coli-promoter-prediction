@@ -260,11 +260,14 @@ def plot_boxplot(df, y_axis, y_label=None, x_axis='File Name', x_label=None,  ti
     plt.tight_layout()
     plt.show()
 
-def plot_heatmap(df, y_label='File Name', x_label='File Name', title=None, flip_y=True, cmap='coolwarm'):
+def plot_heatmap(df, y_label='File Name', x_label='File Name', title=None, flip_y=True, staircase=False, cmap='coolwarm'):
     if title is None:
         title = f'Heatmap of {y_label} vs {x_label}'
+    mask = None
+    if staircase:
+        mask = np.triu(np.ones(df.shape), k=1)
     plt.figure(figsize=(10, 8))
-    sns.heatmap(df, cmap=cmap, annot=True, fmt=".2f")
+    sns.heatmap(df, cmap=cmap, annot=True, fmt=".2f", mask=mask)
     if flip_y:
         plt.gca().invert_yaxis()
     plt.title(title, fontsize=16)
@@ -273,6 +276,7 @@ def plot_heatmap(df, y_label='File Name', x_label='File Name', title=None, flip_
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
     plt.show()
+
 
 def multiple_bar_chart(data, order, y_label, title, colors=None, normalize=True):
     total_width = 0.35
