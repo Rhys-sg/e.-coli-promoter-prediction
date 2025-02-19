@@ -114,8 +114,85 @@ def plot_saliency_map_grid(
 
         return im
 
+def plot_reversed_saliency_map_grid(
+    model_filename='Models/bidir_CNN.keras',
+    data_filename='Data/LaFleur_supp.csv',
+    data=None,
+    i_start=0,
+    i_end=None,
+    relative=True,
+    scaler=5,
+    align_sequences=False
+):
+    model = load_model(model_filename)
 
-def plot_saliency_map_from_train_test_by_file(train_test_by_file):
+    if data is None or data.empty:
+        data = pd.read_csv(data_filename)
+
+    if i_end is None:
+        i_end = len(data)
+    
+    forward_sequences = data.loc[i_start:i_end-1, 'Promoter Sequence'].tolist()
+    
+    def reverse_complement(seq):
+        complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N'}
+        return ''.join(complement[base.upper()] for base in reversed(seq))
+    
+    reversed_sequences = [reverse_complement(seq) for seq in forward_sequences]
+    
+    all_sequences = forward_sequences + reversed_sequences
+    processed_data, _ = main_module.preprocess_sequences(all_sequences, 150)
+    
+    target_class_index = 0
+    
+    def compute_prediction_and_saliency(sequence):
+        prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
+        saliency = generate_saliency_map(model, sequence, target_class_index)
+        if relative and prediction != 0:
+            saliency = saliency / (prediction * scaler)
+        return prediction.numpy(), saliency
+    
+    predictions_and_saliency = [compute_prediction_and_saliency(seq) for seq in processed_data]
+    
+    forward_saliency_maps = [saliency for pred, saliency in predictions_and_saliency[:len(forward_sequences)]]
+    reversed_saliency_maps = [saliency for pred, saliency in predictions_and_saliency[len(forward_sequences):]]
+    
+    if align_sequences:
+        reversed_saliency_maps = [np.flip(saliency) for saliency in reversed_saliency_maps]
+    
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    
+    if forward_saliency_maps:
+        axes[0].imshow(np.vstack(forward_saliency_maps), cmap='magma', aspect='auto')
+        axes[0].set_title("Positive Predictions")
+        axes[0].set_xticks([])
+        axes[0].set_yticks([])
+    
+    if reversed_saliency_maps:
+        axes[1].imshow(np.vstack(reversed_saliency_maps), cmap='magma', aspect='auto')
+        axes[1].set_title("Negative Predictions")
+        axes[1].set_xticks([])
+        axes[1].set_yticks([])
+    
+    plt.tight_layout()
+    plt.show()
+    
+    if forward_saliency_maps and reversed_saliency_maps:
+        forward_mean = np.mean(np.vstack(forward_saliency_maps), axis=0)
+        reversed_mean = np.mean(np.vstack(reversed_saliency_maps), axis=0)
+        diff_map = reversed_mean - forward_mean
+    
+        plt.figure(figsize=(10, 2))
+        plt.imshow(diff_map.reshape(1, -1), cmap='bwr', aspect='auto', vmin=-np.max(np.abs(diff_map)), vmax=np.max(np.abs(diff_map)))
+        plt.colorbar(label="Difference in Saliency")
+        plt.title("Saliency Differences (Negative - Positive)")
+        plt.xticks([])
+        plt.yticks([])
+        plt.show()
+
+
+
+def plot_saliency_map_from_train_test_by_file(train_test_by_file, **kwargs):
     num_files = len(train_test_by_file)
     grid_size = math.ceil(math.sqrt(num_files))  # Ensure a square-like grid (3x3 if 9 files)
 
@@ -128,7 +205,7 @@ def plot_saliency_map_from_train_test_by_file(train_test_by_file):
 
         # Plot the saliency map on the corresponding subplot
         ax = axes[idx]
-        plot_saliency_map_grid(data=X_test_data, i_end=100, title=file, ax=ax)
+        plot_saliency_map_grid(data=X_test_data, i_end=100, title=file, ax=ax, **kwargs)
 
     # Hide any unused subplots (if the grid is larger than the number of files)
     for idx in range(len(train_test_by_file), len(axes)):
