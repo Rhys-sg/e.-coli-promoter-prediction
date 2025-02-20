@@ -84,51 +84,112 @@ def save_repeat_evalute_each_file_statistics(all_results, split_data, file_names
     
     pd.DataFrame(data).to_csv('Data/Figure 2.csv')
 
-def plot_repeat_evalute_each_file(file_names, all_results):
+def plot_repeat_evalute_each_file(file_names, all_results, file_order):
     # Calculate the average and coefficient of variation for each file
     averaged_results = {file: np.mean(all_results[file], axis=0) for file in file_names}
     averaged_training_data = {file: result[0] for file, result in averaged_results.items()}
     averaged_all_data = {file: result[1] for file, result in averaged_results.items()}
     CV_training_data = {file: np.std([result[0] for result in all_results[file]]) / np.mean([result[0] for result in all_results[file]]) for file in file_names}
-    CV_all = {file: np.std([result[1] for result in all_results[file]]) / np.mean([result[1] for result in all_results[file]]) for file in file_names}
-
-    # Prepare the data
+    CV_all_data = {file: np.std([result[1] for result in all_results[file]]) / np.mean([result[1] for result in all_results[file]]) for file in file_names}
+    
+    # Determine sorted orders for training and all data
     training_data_order = sorted(file_names, key=lambda file: averaged_training_data[file])
     all_data_order = sorted(file_names, key=lambda file: averaged_all_data[file])
-    x = np.arange(len(all_data_order))
+    
+    # Ensure file order is respected
+    file_order = [file for file in file_order if file in file_names]
+    x = np.arange(len(file_order))
     bar_width = 0.35
 
     # Extracting the individual and average results
-    training_data_mse = {file: [result[0] for result in all_results[file]] for file in all_data_order}
-    all_data_mse = {file: [result[1] for result in all_results[file]] for file in all_data_order}
-    avg_training_data = [averaged_training_data[file] for file in all_data_order]
-    avg_all_data = [averaged_all_data[file] for file in all_data_order]
+    training_data_mse = {file: [result[0] for result in all_results[file]] for file in file_order}
+    all_data_mse = {file: [result[1] for result in all_results[file]] for file in file_order}
+    avg_training_data = [averaged_training_data[file] for file in file_order]
+    avg_all_data = [averaged_all_data[file] for file in file_order]
 
+    # Plot for Training Data MSE
     plt.figure(figsize=(10, 6))
-
-    for i, file in enumerate(all_data_order):
-        plt.scatter([x[i] - bar_width / 2] * len(training_data_mse[file]), training_data_mse[file], color='skyblue', label='Training Data MSE' if i == 0 else "")
-        plt.scatter([x[i] + bar_width / 2] * len(all_data_mse[file]), all_data_mse[file], color='lightgreen', label='All Data MSE' if i == 0 else "")
-        
-        # Add horizontal line for Training Data MSE average and All Data MSE average
-        plt.hlines(avg_training_data[i], x[i] - bar_width / 2 - 0.05, x[i] - bar_width / 2 + 0.05, colors='grey', linestyles='solid', label='Avgerage MSE' if i == 0 else "")
-        plt.hlines(avg_all_data[i], x[i] + bar_width / 2 - 0.05, x[i] + bar_width / 2 + 0.05, colors='grey', linestyles='solid', label='')
-        
-        # Add label for the coefficient of variation next to the horizontal lines
-        plt.text(x[i] - bar_width*1.1, avg_training_data[i], f'{int(CV_training_data[file]*100)}%', ha='center', va='center', color='black', fontsize=8)
-        plt.text(x[i] + bar_width*1.1, avg_all_data[i], f'{int(CV_all[file]*100)}%', ha='center', va='center', color='black', fontsize=8)
-
-    # Formatting
-    plt.xticks(x, all_data_order, rotation=45, ha='right', rotation_mode='anchor')
+    for i, file in enumerate(file_order):
+        plt.scatter([x[i]] * len(training_data_mse[file]), training_data_mse[file], color='skyblue', label='Training Data MSE' if i == 0 else "")
+        plt.hlines(avg_training_data[i], x[i] - 0.1, x[i] + 0.1, colors='grey', linestyles='solid', label='Average MSE' if i == 0 else "")
+    plt.ylim(0, max(max(max(training_data_mse.values())), max(avg_training_data)) * 1.2)
+    for i, file in enumerate(file_order):
+        plt.text(x[i], max(training_data_mse[file]) * 1.05, f'{int(CV_training_data[file]*100)}%', ha='center', va='bottom', color='black', fontsize=8)
+    plt.xticks(x, file_order, rotation=45, ha='right', rotation_mode='anchor')
     plt.xlabel('Files')
     plt.ylabel('Mean Squared Error (MSE)')
+    plt.title('Training Data MSE')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f'Images/repeat_evalute_each_file.png')
-    plt.savefig('Images/Figure 1.pdf', format='pdf')
+    plt.savefig('Images/training_data_mse.png')
+    plt.savefig('Images/Figure_Training_Data.pdf', format='pdf')
     plt.show()
 
-    return all_data_order, training_data_order, averaged_training_data, averaged_all_data, CV_training_data, CV_all
+    # Plot for All Data MSE
+    plt.figure(figsize=(10, 6))
+    for i, file in enumerate(file_order):
+        plt.scatter([x[i]] * len(all_data_mse[file]), all_data_mse[file], color='lightgreen', label='All Data MSE' if i == 0 else "")
+        plt.hlines(avg_all_data[i], x[i] - 0.1, x[i] + 0.1, colors='grey', linestyles='solid', label='Average MSE' if i == 0 else "")
+    plt.ylim(0, max(max(max(all_data_mse.values())), max(avg_all_data)) * 1.2)
+    for i, file in enumerate(file_order):
+        plt.text(x[i], max(all_data_mse[file]) * 1.05, f'{int(CV_all_data[file]*100)}%', ha='center', va='bottom', color='black', fontsize=8)
+    plt.xticks(x, file_order, rotation=45, ha='right', rotation_mode='anchor')
+    plt.xlabel('Files')
+    plt.ylabel('Mean Squared Error (MSE)')
+    plt.title('All Data MSE')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('Images/all_data_mse.png')
+    plt.savefig('Images/Figure_All_Data.pdf', format='pdf')
+    plt.show()
+
+    return all_data_order, training_data_order, averaged_training_data, averaged_all_data, CV_training_data, CV_all_data
+
+# def plot_repeat_evalute_each_file(file_names, all_results):
+#     # Calculate the average and coefficient of variation for each file
+#     averaged_results = {file: np.mean(all_results[file], axis=0) for file in file_names}
+#     averaged_training_data = {file: result[0] for file, result in averaged_results.items()}
+#     averaged_all_data = {file: result[1] for file, result in averaged_results.items()}
+#     CV_training_data = {file: np.std([result[0] for result in all_results[file]]) / np.mean([result[0] for result in all_results[file]]) for file in file_names}
+#     CV_all_data = {file: np.std([result[1] for result in all_results[file]]) / np.mean([result[1] for result in all_results[file]]) for file in file_names}
+
+#     # Prepare the data
+#     training_data_order = sorted(file_names, key=lambda file: averaged_training_data[file])
+#     all_data_order = sorted(file_names, key=lambda file: averaged_all_data[file])
+#     x = np.arange(len(all_data_order))
+#     bar_width = 0.35
+
+#     # Extracting the individual and average results
+#     training_data_mse = {file: [result[0] for result in all_results[file]] for file in all_data_order}
+#     all_data_mse = {file: [result[1] for result in all_results[file]] for file in all_data_order}
+#     avg_training_data = [averaged_training_data[file] for file in all_data_order]
+#     avg_all_data = [averaged_all_data[file] for file in all_data_order]
+
+#     plt.figure(figsize=(10, 6))
+
+#     for i, file in enumerate(all_data_order):
+#         plt.scatter([x[i] - bar_width / 2] * len(training_data_mse[file]), training_data_mse[file], color='skyblue', label='Training Data MSE' if i == 0 else "")
+#         plt.scatter([x[i] + bar_width / 2] * len(all_data_mse[file]), all_data_mse[file], color='lightgreen', label='All Data MSE' if i == 0 else "")
+        
+#         # Add horizontal line for Training Data MSE average and All Data MSE average
+#         plt.hlines(avg_training_data[i], x[i] - bar_width / 2 - 0.05, x[i] - bar_width / 2 + 0.05, colors='grey', linestyles='solid', label='Avgerage MSE' if i == 0 else "")
+#         plt.hlines(avg_all_data[i], x[i] + bar_width / 2 - 0.05, x[i] + bar_width / 2 + 0.05, colors='grey', linestyles='solid', label='')
+        
+#         # Add label for the coefficient of variation next to the horizontal lines
+#         plt.text(x[i] - bar_width*1.1, avg_training_data[i], f'{int(CV_training_data[file]*100)}%', ha='center', va='center', color='black', fontsize=8)
+#         plt.text(x[i] + bar_width*1.1, avg_all_data[i], f'{int(CV_all_data[file]*100)}%', ha='center', va='center', color='black', fontsize=8)
+
+#     # Formatting
+#     plt.xticks(x, all_data_order, rotation=45, ha='right', rotation_mode='anchor')
+#     plt.xlabel('Files')
+#     plt.ylabel('Mean Squared Error (MSE)')
+#     plt.legend()
+#     plt.tight_layout()
+#     plt.savefig(f'Images/repeat_evalute_each_file.png')
+#     plt.savefig('Images/Figure 1.pdf', format='pdf')
+#     plt.show()
+
+#     return all_data_order, training_data_order, averaged_training_data, averaged_all_data, CV_training_data, CV_all_data
 
 '''
 The next set of functions are used for the file comparison and analysis
