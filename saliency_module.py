@@ -79,7 +79,9 @@ def plot_saliency_map_grid(
     # Function to compute predictions and saliency maps
     def compute_prediction_and_saliency(sequence):
         prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
-        saliency = generate_saliency_map(model, sequence, target_class_index)
+        saliency = np.abs(generate_saliency_map(model, sequence, target_class_index))
+        if np.isnan(saliency).any():
+            saliency = np.zeros_like(saliency)
         if relative:
             saliency = saliency / (prediction * scaler)
         return prediction, saliency
@@ -284,3 +286,83 @@ def generate_spacers(
     data_df.to_csv(output_csv, index=False)
 
     return data_df
+
+
+def feature_ablation_map(
+    model_filename='Models/model.keras',
+    data_filename='Data/LaFleur_supp.csv',
+    data=None,
+    i_start=0,
+    i_end=None,
+    relative=True,
+    scaler=5,
+    sort_by_prediction=True,
+    title=None,
+    ax=None
+):
+    model = load_model(model_filename)
+
+    if data is None or data.empty:
+        data = pd.read_csv(data_filename)
+
+    if i_end is None:
+        i_end = len(data)
+    data = data.loc[i_start:i_end-1, 'Promoter Sequence']
+
+    data, max_length = main_module.preprocess_sequences(data, 150)
+
+    target_class_index = 0
+
+    def compute_prediction_and_ablation(sequence):
+        prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
+        ablation = np.array(compute_feature_ablation(model, sequence))
+        if relative:
+            ablation = ablation / (prediction * scaler)
+        return prediction, ablation
+    
+    predictions_and_ablation = [compute_prediction_and_ablation(seq) for seq in data]
+
+    # Optionally sort by prediction
+    if sort_by_prediction:
+        predictions_and_ablation.sort(key=lambda x: x[0])
+
+    ablation_maps = [ablation for _, ablation in predictions_and_ablation]
+
+    stacked_ablation_map = np.vstack(ablation_maps)
+    vmin = np.min(stacked_ablation_map)
+    vmax = np.max(stacked_ablation_map)
+
+    # Plot on the provided subplot axis
+    if not ax:
+        plt.imshow(stacked_ablation_map, cmap='magma', aspect='auto', vmin=vmin, vmax=vmax)
+        plt.xticks([])
+        plt.yticks([])
+        plt.tight_layout()
+        if title is not None:
+            plt.title(title)
+        plt.show()
+    else:
+        im = ax.imshow(stacked_ablation_map, cmap='magma', aspect='auto', vmin=vmin, vmax=vmax)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        if title is not None:
+            ax.set_title(title)
+
+        return im
+    
+def compute_feature_ablation(model, sequence):
+    """
+    Computes feature ablation by replacing each position with 'N' in the preprocessed sequence.
+    Measures the change in model prediction for each masked input.
+    """
+
+    original_prediction = model(tf.convert_to_tensor([sequence], dtype=tf.float32))[0, 0]
+    ablation = []
+
+    for i in range(len(sequence)):
+        masked_sequence = sequence.copy()
+        masked_sequence[i] = [0,0,0,0]
+        new_prediction = model(tf.convert_to_tensor([masked_sequence], dtype=tf.float32))[0, 0]
+        ablation.append(original_prediction - new_prediction)
+
+    return ablation
