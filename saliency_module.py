@@ -135,6 +135,7 @@ def plot_reversed_saliency_map_grid(
         i_end = len(data)
     
     forward_sequences = data.loc[i_start:i_end-1, 'Promoter Sequence'].tolist()
+    max_length = max(len(seq) for seq in forward_sequences)
     
     def reverse_complement(seq):
         complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N'}
@@ -146,6 +147,94 @@ def plot_reversed_saliency_map_grid(
     processed_data, _ = main_module.preprocess_sequences(all_sequences, 150)
     
     target_class_index = 0
+    
+    def compute_prediction_and_saliency(sequence):
+        prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
+        saliency = generate_saliency_map(model, sequence, target_class_index)
+        if relative and prediction != 0:
+            saliency = saliency / (prediction * scaler)
+        return prediction.numpy(), saliency
+    
+    predictions_and_saliency = [compute_prediction_and_saliency(seq) for seq in processed_data]
+    
+    if align_sequences:
+        forward_saliency_maps = [np.array(saliency)[:, -max_length:] for _, saliency in predictions_and_saliency[:len(forward_sequences)]]
+        reversed_saliency_maps = [np.array(saliency)[:, -max_length:] for _, saliency in predictions_and_saliency[len(forward_sequences):]]
+        reversed_saliency_maps = [np.flip(saliency) for saliency in reversed_saliency_maps]
+    else:
+        forward_saliency_maps = [np.array(saliency) for _, saliency in predictions_and_saliency[:len(forward_sequences)]]
+        reversed_saliency_maps = [np.array(saliency) for _, saliency in predictions_and_saliency[len(forward_sequences):]]
+    
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    
+    if forward_saliency_maps:
+        axes[0].imshow(np.vstack(forward_saliency_maps), cmap='magma', aspect='auto')
+        axes[0].set_title("Positive Predictions")
+        axes[0].set_xticks([])
+        axes[0].set_yticks([])
+    
+    if reversed_saliency_maps:
+        axes[1].imshow(np.vstack(reversed_saliency_maps), cmap='magma', aspect='auto')
+        axes[1].set_title("Negative Predictions")
+        axes[1].set_xticks([])
+        axes[1].set_yticks([])
+    
+    plt.tight_layout()
+    plt.show()
+    
+    if forward_saliency_maps and reversed_saliency_maps:
+        forward_mean = np.mean(np.vstack(forward_saliency_maps), axis=0)
+        reversed_mean = np.mean(np.vstack(reversed_saliency_maps), axis=0)
+        diff_map = reversed_mean - forward_mean
+    
+        plt.figure(figsize=(10, 2))
+        plt.imshow(diff_map.reshape(1, -1), cmap='bwr', aspect='auto', vmin=-np.max(np.abs(diff_map)), vmax=np.max(np.abs(diff_map)))
+        plt.colorbar(label="Difference in Saliency")
+        plt.title("Saliency Differences (Negative - Positive)")
+        plt.xticks([])
+        plt.yticks([])
+        plt.show()
+
+def plot_isReversed_saliency_map_grid(
+    model_filename='Models/isReversed_CNN.keras',
+    data_filename='Data/LaFleur_supp.csv',
+    data=None,
+    num_sequences=10,
+    relative=True,
+    scaler=5,
+    align_sequences=False
+):
+    model = load_model(model_filename)
+
+    if data is None or data.empty:
+        data = pd.read_csv(data_filename)
+    
+    def reverse_complement(seq):
+        complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N'}
+        return ''.join(complement[base.upper()] for base in reversed(seq))
+    
+    valid_sequences = []
+    target_class_index = 0
+    
+    for index, row in data.iterrows():
+        forward_seq = row['Promoter Sequence']
+        reversed_seq = reverse_complement(forward_seq)
+        
+        processed_forward, _ = main_module.preprocess_sequences([forward_seq], 150)
+        processed_reversed, _ = main_module.preprocess_sequences([reversed_seq], 150)
+        
+        forward_pred = model(tf.convert_to_tensor(processed_forward, dtype=tf.float32))[0, target_class_index].numpy()
+        reversed_pred = model(tf.convert_to_tensor(processed_reversed, dtype=tf.float32))[0, target_class_index].numpy()
+        
+        if forward_pred not in [0, 1] and reversed_pred not in [0, 1]:
+            valid_sequences.append((forward_seq, reversed_seq))
+        
+        if len(valid_sequences) >= num_sequences:
+            break
+    
+    forward_sequences, reversed_sequences = zip(*valid_sequences) if valid_sequences else ([], [])
+    all_sequences = list(forward_sequences) + list(reversed_sequences)
+    processed_data, _ = main_module.preprocess_sequences(all_sequences, 150)
     
     def compute_prediction_and_saliency(sequence):
         prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
@@ -191,7 +280,6 @@ def plot_reversed_saliency_map_grid(
         plt.xticks([])
         plt.yticks([])
         plt.show()
-
 
 
 def plot_saliency_map_from_train_test_by_file(train_test_by_file, **kwargs):
@@ -286,83 +374,3 @@ def generate_spacers(
     data_df.to_csv(output_csv, index=False)
 
     return data_df
-
-
-def feature_ablation_map(
-    model_filename='Models/model.keras',
-    data_filename='Data/LaFleur_supp.csv',
-    data=None,
-    i_start=0,
-    i_end=None,
-    relative=True,
-    scaler=5,
-    sort_by_prediction=True,
-    title=None,
-    ax=None
-):
-    model = load_model(model_filename)
-
-    if data is None or data.empty:
-        data = pd.read_csv(data_filename)
-
-    if i_end is None:
-        i_end = len(data)
-    data = data.loc[i_start:i_end-1, 'Promoter Sequence']
-
-    data, max_length = main_module.preprocess_sequences(data, 150)
-
-    target_class_index = 0
-
-    def compute_prediction_and_ablation(sequence):
-        prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
-        ablation = np.array(compute_feature_ablation(model, sequence))
-        if relative:
-            ablation = ablation / (prediction * scaler)
-        return prediction, ablation
-    
-    predictions_and_ablation = [compute_prediction_and_ablation(seq) for seq in data]
-
-    # Optionally sort by prediction
-    if sort_by_prediction:
-        predictions_and_ablation.sort(key=lambda x: x[0])
-
-    ablation_maps = [ablation for _, ablation in predictions_and_ablation]
-
-    stacked_ablation_map = np.vstack(ablation_maps)
-    vmin = np.min(stacked_ablation_map)
-    vmax = np.max(stacked_ablation_map)
-
-    # Plot on the provided subplot axis
-    if not ax:
-        plt.imshow(stacked_ablation_map, cmap='magma', aspect='auto', vmin=vmin, vmax=vmax)
-        plt.xticks([])
-        plt.yticks([])
-        plt.tight_layout()
-        if title is not None:
-            plt.title(title)
-        plt.show()
-    else:
-        im = ax.imshow(stacked_ablation_map, cmap='magma', aspect='auto', vmin=vmin, vmax=vmax)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        if title is not None:
-            ax.set_title(title)
-
-        return im
-    
-def compute_feature_ablation(model, sequence):
-    """
-    Computes feature ablation by replacing each position with 'N' in the preprocessed sequence.
-    Measures the change in model prediction for each masked input.
-    """
-
-    original_prediction = model(tf.convert_to_tensor([sequence], dtype=tf.float32))[0, 0]
-    ablation = []
-
-    for i in range(len(sequence)):
-        masked_sequence = sequence.copy()
-        masked_sequence[i] = [0,0,0,0]
-        new_prediction = model(tf.convert_to_tensor([masked_sequence], dtype=tf.float32))[0, 0]
-        ablation.append(original_prediction - new_prediction)
-
-    return ablation
