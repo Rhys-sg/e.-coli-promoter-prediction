@@ -195,8 +195,8 @@ def plot_reversed_saliency_map_grid(
         plt.yticks([])
         plt.show()
 
-def plot_isReversed_saliency_map_grid(
-    model_filename='Models/isReversed_CNN.keras',
+def plot_isForward_saliency_map_grid(
+    model_filename='Models/isForward_CNN.keras',
     data_filename='Data/LaFleur_supp.csv',
     data=None,
     num_sequences=10,
