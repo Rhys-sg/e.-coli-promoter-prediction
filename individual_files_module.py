@@ -119,7 +119,7 @@ def plot_repeat_evalute_each_file(file_names, all_results, file_order):
     plt.xlabel('Files')
     plt.ylabel('Mean Squared Error (MSE)')
     plt.title('Training Data MSE')
-    plt.legend()
+    ##plt.legend()
     plt.tight_layout()
     plt.savefig('Images/training_data_mse.png')
     plt.savefig('Images/Figure_Training_Data.pdf', format='pdf')
@@ -137,11 +137,36 @@ def plot_repeat_evalute_each_file(file_names, all_results, file_order):
     plt.xlabel('Files')
     plt.ylabel('Mean Squared Error (MSE)')
     plt.title('All Data MSE')
-    plt.legend()
+    ##plt.legend()
     plt.tight_layout()
     plt.savefig('Images/all_data_mse.png')
     plt.savefig('Images/Figure_All_Data.pdf', format='pdf')
     plt.show()
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
+    for i, file in enumerate(file_order):
+        ax1.scatter([x[i]] * len(training_data_mse[file]), training_data_mse[file], color='skyblue', label='Training Data MSE' if i == 0 else "")
+        ax1.hlines(avg_training_data[i], x[i] - 0.1, x[i] + 0.1, colors='grey', linestyles='solid', label='Average MSE' if i == 0 else "")
+    ax1.set_ylim(0, max(max(max(training_data_mse.values())), max(avg_training_data)) * 1.2)
+    for i, file in enumerate(file_order):
+        ax1.text(x[i], max(training_data_mse[file]) * 1.05, f'{int(CV_training_data[file]*100)}%', ha='center', va='bottom', color='black', fontsize=8)
+    ax1.set_xticks(x, file_order, rotation=45, ha='right', rotation_mode='anchor')
+    ax1.set_ylabel('Mean Squared Error (MSE)')
+    ax1.set_title('Testing against self')
+
+    for i, file in enumerate(file_order):
+        ax2.scatter([x[i]] * len(all_data_mse[file]), all_data_mse[file], color='lightgreen', label='All Data MSE' if i == 0 else "")
+        ax2.hlines(avg_all_data[i], x[i] - 0.1, x[i] + 0.1, colors='grey', linestyles='solid', label='Average MSE' if i == 0 else "")
+    ax2.set_ylim(0, max(max(max(all_data_mse.values())), max(avg_all_data)) * 1.2)
+    for i, file in enumerate(file_order):
+        ax2.text(x[i], max(all_data_mse[file]) * 1.05, f'{int(CV_all_data[file]*100)}%', ha='center', va='bottom', color='black', fontsize=8)
+    ax2.set_xticks(x, file_order, rotation=45, ha='right', rotation_mode='anchor')
+    ax2.set_title('Testing against aggregation')
+    ##plt.savefig('Images/all_data_mse.png')
+    ##plt.savefig('Images/Figure_All_Data.pdf', format='pdf')
+    fig.supxlabel("Dataset")
+    fig.tight_layout()
+    fig.show()
 
     return all_data_order, training_data_order, averaged_training_data, averaged_all_data, CV_training_data, CV_all_data
 
