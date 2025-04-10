@@ -60,7 +60,7 @@ def plot_saliency_map_grid(
     random_state=None,
     relative=True,
     scaler=5,
-    sort_by_prediction=True,
+    sort_by_prediction=False,
     title=None,
     ax=None
 ):
@@ -123,8 +123,8 @@ def plot_reversed_saliency_map_grid(
     model_filename='Models/bidir_CNN.keras',
     data_filename='Data/LaFleur_supp.csv',
     data=None,
-    i_start=0,
-    i_end=None,
+    num_samples=100,
+    random_state=None,
     relative=True,
     scaler=5,
     align_sequences=False
@@ -134,18 +134,19 @@ def plot_reversed_saliency_map_grid(
     if data is None or data.empty:
         data = pd.read_csv(data_filename)
 
-    if i_end is None:
-        i_end = len(data)
-    
-    forward_sequences = data.loc[i_start:i_end-1, 'Promoter Sequence'].tolist()
-    max_length = max(len(seq) for seq in forward_sequences)
+    # sample num_samples random sequences from the "sequences" column in data
+    if random_state is None:
+        random_state = random.randint(0, 10000)
+    if num_samples is not None:
+        data = data.sample((min(num_samples, len(data))), random_state=random_state).reset_index(drop=True)
     
     def reverse_complement(seq):
         complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N'}
         return ''.join(complement[base.upper()] for base in reversed(seq))
     
-    reversed_sequences = [reverse_complement(seq) for seq in forward_sequences]
-    
+    forward_sequences = data['Promoter Sequence'].tolist()
+    max_length = max(len(seq) for seq in forward_sequences)
+    reversed_sequences = [reverse_complement(seq) for seq in forward_sequences]   
     all_sequences = forward_sequences + reversed_sequences
     processed_data, _ = main_module.preprocess_sequences(all_sequences, 150)
     
@@ -202,7 +203,7 @@ def plot_isForward_saliency_map_grid(
     model_filename='Models/isForward_CNN.keras',
     data_filename='Data/LaFleur_supp.csv',
     data=None,
-    num_sequences=10,
+    num_samples=10,
     relative=True,
     scaler=5,
     align_sequences=False
@@ -232,7 +233,7 @@ def plot_isForward_saliency_map_grid(
         if forward_pred not in [0, 1] and reversed_pred not in [0, 1]:
             valid_sequences.append((forward_seq, reversed_seq))
         
-        if len(valid_sequences) >= num_sequences:
+        if len(valid_sequences) >= num_samples:
             break
     
     forward_sequences, reversed_sequences = zip(*valid_sequences) if valid_sequences else ([], [])
@@ -285,7 +286,7 @@ def plot_isForward_saliency_map_grid(
         plt.show()
 
 
-def plot_saliency_map_from_train_test_by_file(train_test_by_file, **kwargs):
+def plot_saliency_map_from_train_test_by_file(train_test_by_file, subset, **kwargs):
     num_files = len(train_test_by_file)
     grid_size = math.ceil(math.sqrt(num_files))  # Ensure a square-like grid (3x3 if 9 files)
 
@@ -293,12 +294,18 @@ def plot_saliency_map_from_train_test_by_file(train_test_by_file, **kwargs):
     axes = axes.flatten()  # Flatten the 2D axes array to easily index them
 
     for idx, (file, train_test) in enumerate(train_test_by_file.items()):
-        X_train, X_test, y_train, y_test = train_test
-        X_test_data = main_module.decode_to_df(X_test)
+        if subset == 'train':
+            data = train_test[0]
+        elif subset == 'test':
+            data = train_test[1]
+        else:
+            raise ValueError("Subset must be 'train' or 'test'")
+        
+        data = main_module.decode_to_df(data)
 
         # Plot the saliency map on the corresponding subplot
         ax = axes[idx]
-        plot_saliency_map_grid(data=X_test_data, num_samples=100, title=file, ax=ax, **kwargs)
+        plot_saliency_map_grid(data=data, num_samples=100, title=file, ax=ax, **kwargs)
 
     # Hide any unused subplots (if the grid is larger than the number of files)
     for idx in range(len(train_test_by_file), len(axes)):
