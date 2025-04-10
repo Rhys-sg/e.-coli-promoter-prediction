@@ -56,8 +56,8 @@ def plot_saliency_map_grid(
     model_filename='Models/model.keras',
     data_filename='Data/LaFleur_supp.csv',
     data=None,
-    i_start=0,
-    i_end=None,
+    num_samples=100,
+    random_state=None,
     relative=True,
     scaler=5,
     sort_by_prediction=True,
@@ -69,11 +69,14 @@ def plot_saliency_map_grid(
     if data is None or data.empty:
         data = pd.read_csv(data_filename)
 
-    if i_end is None:
-        i_end = len(data)
-    data = data.loc[i_start:i_end-1, 'Promoter Sequence']
+    # sample num_samples random sequences from the "sequences" column in data
+    if random_state is None:
+        random_state = random.randint(0, 10000)
+    if num_samples is not None:
+        data = data.sample((min(num_samples, len(data))), random_state=random_state).reset_index(drop=True)
+    data = data['Promoter Sequence'].tolist()
 
-    data, max_length = main_module.preprocess_sequences(data, 150)
+    data, _ = main_module.preprocess_sequences(data, 150)
     target_class_index = 0
 
     # Function to compute predictions and saliency maps
@@ -295,7 +298,7 @@ def plot_saliency_map_from_train_test_by_file(train_test_by_file, **kwargs):
 
         # Plot the saliency map on the corresponding subplot
         ax = axes[idx]
-        plot_saliency_map_grid(data=X_test_data, i_end=100, title=file, ax=ax, **kwargs)
+        plot_saliency_map_grid(data=X_test_data, num_samples=100, title=file, ax=ax, **kwargs)
 
     # Hide any unused subplots (if the grid is larger than the number of files)
     for idx in range(len(train_test_by_file), len(axes)):
