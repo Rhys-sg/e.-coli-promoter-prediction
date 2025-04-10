@@ -59,7 +59,6 @@ def plot_saliency_map_grid(
     num_samples=100,
     random_state=None,
     relative=True,
-    scaler=5,
     sort_by_prediction=False,
     title=None,
     ax=None
@@ -86,7 +85,7 @@ def plot_saliency_map_grid(
         if np.isnan(saliency).any():
             saliency = np.zeros_like(saliency)
         if relative:
-            saliency = saliency / (prediction * scaler)
+            saliency = saliency / prediction
         return prediction, saliency
 
     predictions_and_saliency = [compute_prediction_and_saliency(seq) for seq in data]
@@ -126,7 +125,6 @@ def plot_reversed_saliency_map_grid(
     num_samples=100,
     random_state=None,
     relative=True,
-    scaler=5,
     align_sequences=False
 ):
     model = load_model(model_filename)
@@ -156,7 +154,7 @@ def plot_reversed_saliency_map_grid(
         prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
         saliency = generate_saliency_map(model, sequence, target_class_index)
         if relative and prediction != 0:
-            saliency = saliency / (prediction * scaler)
+            saliency = saliency / prediction
         return prediction.numpy(), saliency
     
     predictions_and_saliency = [compute_prediction_and_saliency(seq) for seq in processed_data]
@@ -205,7 +203,6 @@ def plot_isForward_saliency_map_grid(
     data=None,
     num_samples=10,
     relative=True,
-    scaler=5,
     align_sequences=False
 ):
     model = load_model(model_filename)
@@ -244,7 +241,7 @@ def plot_isForward_saliency_map_grid(
         prediction = model(tf.convert_to_tensor(sequence[np.newaxis, ...], dtype=tf.float32))[0, target_class_index]
         saliency = generate_saliency_map(model, sequence, target_class_index)
         if relative and prediction != 0:
-            saliency = saliency / (prediction * scaler)
+            saliency = saliency / prediction
         return prediction.numpy(), saliency
     
     predictions_and_saliency = [compute_prediction_and_saliency(seq) for seq in processed_data]
