@@ -82,7 +82,7 @@ def save_repeat_evalute_each_file_statistics(all_results, split_data, file_names
         data['Coefficient of Variation (Self)'].append(calc_CV([each[0] for each in all_results[file]]))
         data['Coefficient of Variation (All)'].append(calc_CV([each[1] for each in all_results[file]]))
     
-    pd.DataFrame(data).to_csv('Data/Figure 2.csv')
+    pd.DataFrame(data).to_csv('Data/Table 1.csv')
 
 def plot_repeat_evalute_each_file(file_names, all_results, file_order):
     # Calculate the average and coefficient of variation for each file
