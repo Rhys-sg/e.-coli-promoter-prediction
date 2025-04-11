@@ -406,7 +406,7 @@ def get_promoter_sequence_lengths(df):
 def get_observed_expressions(df):
     return df.groupby('File Name')['Observed log(TX/Txref)'].apply(lambda x: x.tolist()).to_dict()
 
-def get_inter_file_entropy(df, normalize=True):
+def get_within_file_entropy(df, normalize=True):
     return df.groupby('File Name').apply(lambda x: _calculate_average_entropy(x, normalize)).to_dict()
 
 def get_pairwise_file_distance(df, n=10, order=None, pad=True, exclude_self=False, function=None):
@@ -496,7 +496,7 @@ def plot_relative_data(data, file_order, all_results, training_data=True, all_da
         del comiled_data[f'{metric1} / {metric2}']
         del colors[f'{metric1} / {metric2}']
 
-def _calculate_inter_variance(df, normalize, pad=True):
+def _calculate_within_variance(df, normalize, pad=True):
     df['Promoter Sequence'] = df['Promoter Sequence'].apply(lambda x: x.upper())
     if pad or len(df['Promoter Sequence'].apply(lambda x: len(x)).unique()) > 1:
         df['Promoter Sequence'] = df['Promoter Sequence'].apply(lambda x: x.upper().zfill(150))
