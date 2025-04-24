@@ -409,7 +409,7 @@ def get_observed_expressions(df):
 def get_within_file_entropy(df, normalize=True):
     return df.groupby('File Name').apply(lambda x: _calculate_average_entropy(x, normalize)).to_dict()
 
-def get_pairwise_file_distance(df, n=10, order=None, pad=True, exclude_self=False, function=None):
+def get_pairwise_file_distance(df, n=10, order=None, pad=True, exclude_self=False, function=None, combine=False):
     if order is not None:
         df = df[df['File Name'].isin(order)]
         file_names = order
@@ -425,8 +425,12 @@ def get_pairwise_file_distance(df, n=10, order=None, pad=True, exclude_self=Fals
             if exclude_self and i == j:
                 continue
             seqs_file2 = df[df['File Name'] == file2]['Promoter Sequence'].sample(n=min(n, len(df[df['File Name'] == file2]))).tolist()
-            combined_seqs = seqs_file1 + seqs_file2
-            avg_hamming = _average_pairwise_distance(combined_seqs, function)
+            if combine:
+                combined_seqs = seqs_file1 + seqs_file2
+                avg_hamming = _average_pairwise_distance(combined_seqs, function)
+            else:
+                distances = [function(a, b) for a in seqs_file1 for b in seqs_file2]
+                avg_hamming = np.mean(distances)
             heatmap_data[i, j] = avg_hamming
             heatmap_data[j, i] = avg_hamming
 
