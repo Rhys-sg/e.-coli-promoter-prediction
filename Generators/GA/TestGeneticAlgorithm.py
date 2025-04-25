@@ -10,7 +10,7 @@ from .Lineage import Lineage
 from ..CNN import CNN
 
 from ..Operators.CrossoverMethod import CrossoverMethod
-from ..Operators.MutationMethod import MutationMethod
+from ..Operators.MutationRate import MutationRate
 from ..Operators.SelectionMethod import SelectionMethod
 
 class GeneticAlgorithm:
@@ -32,32 +32,34 @@ class GeneticAlgorithm:
             target_expression,
             population_size=200,
             generations=500,
+            early_stopping_patience=None,
             seed=None,
 
             # Mutation parameters
             mutation_method='mutConstant',
-            mutation_prob=0.2,
+            mutation_prob=0.667,
             mutation_rate=0.1,
             mutation_rate_start=0.1,
             mutation_rate_end=0.1,
             mutation_rate_degree=2,
 
             # Crossover parameters
-            crossover_method='cxOnePoint',
-            crossover_rate=1,
+            crossover_method='cxUniform',
+            crossover_rate=0.80,
             crossover_points=2,
             
             # Selection parameters
-            selection_method='selBest',
+            selection_method='selTournament',
             boltzmann_temperature=0.1,
-            tournsize=5,
+            tournsize=8,
 
             # Additional parameters
-            elitism_rate=0,
-            survival_rate=0.5,
+            elitism_rate=0.2,
+            survival_rate=0.8,
 
             # Evaluation parameters
-            track_history=True
+            track_history=True,
+            track_convergence=False,
     ):
         # Set seed
         if seed is not None:
@@ -66,6 +68,7 @@ class GeneticAlgorithm:
         # Genetic Algorithm attributes
         self.population_size = population_size
         self.generations = generations
+        self.early_stopping_patience = early_stopping_patience
         self.crossover_rate = crossover_rate
         self.mutation_prob = mutation_prob
 
@@ -78,7 +81,7 @@ class GeneticAlgorithm:
         self.target_expression = target_expression
 
         # Operators
-        self.adj_mutation_rate = getattr(MutationMethod(mutation_rate, mutation_rate_start, mutation_rate_end, mutation_rate_degree, generations), mutation_method)
+        self.mutation_rate = getattr(MutationRate(mutation_rate, mutation_rate_start, mutation_rate_end, mutation_rate_degree, generations), mutation_method)
         self.crossover_method = getattr(CrossoverMethod(crossover_points), crossover_method)
         self.selection_method = getattr(SelectionMethod(boltzmann_temperature, tournsize), selection_method)
 
@@ -93,6 +96,7 @@ class GeneticAlgorithm:
         # Lineage objects
         self.lineage_objects = []
         self.track_history = track_history
+        self.track_convergence = track_convergence
 
     def _set_seed(self, seed):
         random.seed(seed)
@@ -147,7 +151,7 @@ class GeneticAlgorithm:
         self.toolbox.register("evaluate", evaluate)
         self.toolbox.register("select", self.selection_method)
         self.toolbox.register("mate", self.crossover_method)
-        self.toolbox.register("adj_mutation_rate", self.adj_mutation_rate)
+        self.toolbox.register("mutation_rate", self.mutation_rate)
         self.toolbox.register("mutate", mutate)
         self.toolbox.register("map", batch_map)
         
@@ -163,6 +167,7 @@ class GeneticAlgorithm:
             lineage = Lineage(
                 toolbox=self.toolbox,
                 population_size=self.population_size,
+                early_stopping_patience=self.early_stopping_patience,
                 crossover_rate=self.crossover_rate,
                 mutation_prob=self.mutation_prob,
                 reconstruct_sequence=self._reconstruct_sequence,
@@ -171,6 +176,7 @@ class GeneticAlgorithm:
                 elitism_rate=self.elitism_rate,
                 survival_rate=self.survival_rate,
                 track_history=self.track_history,
+                track_convergence=self.track_convergence,
             )
             
             lineage.run(self.generations)
@@ -217,26 +223,26 @@ class GeneticAlgorithm:
     '''
     Properties for the convergence history of each lineage, the max, min, and mean convergence history of all lineages
     '''
-    # @property
-    # def convergence_history(self):
-    #     return [lineage.convergence_history for lineage in self.lineage_objects]
+    @property
+    def convergence_history(self):
+        return [lineage.convergence_history for lineage in self.lineage_objects]
 
-    # @property
-    # def max_lineage_convergence_history(self):
-    #     convergence_history = self.convergence_history
-    #     return [max([convergence_history[i][j] for i in range(len(convergence_history))]) for j in range(len(convergence_history[0]))]
+    @property
+    def max_lineage_convergence_history(self):
+        convergence_history = self.convergence_history
+        return [max([convergence_history[i][j] for i in range(len(convergence_history))]) for j in range(len(convergence_history[0]))]
     
-    # @property
-    # def min_lineage_convergence_history(self):
-    #     convergence_history = self.convergence_history
-    #     return [min([convergence_history[i][j] for i in range(len(convergence_history))]) for j in range(len(convergence_history[0]))]
+    @property
+    def min_lineage_convergence_history(self):
+        convergence_history = self.convergence_history
+        return [min([convergence_history[i][j] for i in range(len(convergence_history))]) for j in range(len(convergence_history[0]))]
     
-    # @property
-    # def mean_lineage_convergence_history(self):
-    #     convergence_history = self.convergence_history
-    #     return [np.mean([convergence_history[i][j] for i in range(len(convergence_history))]) for j in range(len(convergence_history[0]))]
+    @property
+    def mean_lineage_convergence_history(self):
+        convergence_history = self.convergence_history
+        return [np.mean([convergence_history[i][j] for i in range(len(convergence_history))]) for j in range(len(convergence_history[0]))]
     
-    # def reorder_history_by_generation(self, history):
-    #     '''Reformats the history of each lineage to be ordered by generation, not lineage. Ensures all data is in a similar format.'''
-    #     return [[history[i][j] for i in range(len(history))] for j in range(len(history[0]))]
+    def reorder_history_by_generation(self, history):
+        '''Reformats the history of each lineage to be ordered by generation, not lineage. Ensures all data is in a similar format.'''
+        return [[history[i][j] for i in range(len(history))] for j in range(len(history[0]))]
         

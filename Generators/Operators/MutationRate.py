@@ -2,7 +2,7 @@ import random
 import math
 import numpy as np
 
-class MutationMethod():
+class MutationRate():
     '''
     This class implements various mutation methods for genetic algorithms and stores parameters.
 
@@ -58,4 +58,4 @@ class MutationMethod():
     
     @staticmethod
     def get_all_methods():
-        return [method for method in dir(MutationMethod) if method.startswith('mut')]
+        return [method for method in dir(MutationRate) if method.startswith('mut')]

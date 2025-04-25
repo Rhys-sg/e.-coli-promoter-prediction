@@ -5,15 +5,13 @@ import os
 from ..CNN import CNN
 from collections import deque
 
-class TabuSearch:
+class AdaptiveTabuSearch:
     '''
-    Tabu Search algorithm for optimizing sequences with a CNN prediction model.
-    Escapes local optima by allowing non-improving moves and preventing cycles via a tabu list.
-    Stops early if the tabu list starts repeating.
+    Tabu Search algorithm with adaptive tabu list size.
+    Increases memory when cycles are detected to escape repeating patterns.
     '''
 
-    def __init__(self, cnn_model_path, masked_sequence, target_expression,
-                 max_iter=1000, early_stopping_patience=None, tabu_size=10, seed=None):
+    def __init__(self, cnn_model_path, masked_sequence, target_expression, max_iter=1000, early_stopping_patience=None, tabu_size=10, max_tabu_size=100, tabu_growth=5, seed=None):
         if seed is not None:
             self._set_seed(seed)
 
@@ -24,20 +22,22 @@ class TabuSearch:
         self.max_iter = max_iter
         self.early_stopping_patience = early_stopping_patience
         self.early_stopping_counter = 0
-        self.tabu_size = tabu_size
+        self.initial_tabu_size = tabu_size
+        self.max_tabu_size = max_tabu_size
+        self.tabu_growth = tabu_growth
+        self.tabu_list = deque(maxlen=tabu_size)
+
+        self.prediction_history = []
+        self.error_history = []
+        self.sequence_history = []
+        self.tabu_history = set()
+        self.early_stop = False
         self.nucleotides = np.array([
             [1, 0, 0, 0],  # A
             [0, 1, 0, 0],  # C
             [0, 0, 1, 0],  # G
             [0, 0, 0, 1]   # T
         ])
-
-        self.prediction_history = []
-        self.error_history = []
-        self.sequence_history = []
-        self.early_stop = False
-        self.tabu_list = deque(maxlen=self.tabu_size)
-        self.tabu_history = set()
 
     def _set_seed(self, seed):
         random.seed(seed)
@@ -49,7 +49,6 @@ class TabuSearch:
         return [i for i, element in enumerate(masked_sequence) if np.allclose(element, 0.25, atol=1e-9)]
 
     def _mutate_sequences(self, sequence):
-        ''' Generate all possible mutations for the masked indices '''
         original_sequence = np.array(sequence, copy=True)
         return np.array([
             (mutated := original_sequence.copy(), mutated.__setitem__(idx, nt))[0]
@@ -64,8 +63,12 @@ class TabuSearch:
         return predictions, errors
 
     def _tabu_signature(self):
-        ''' Create a hashable signature of the current tabu list '''
         return tuple(self.tabu_list)
+
+    def _grow_tabu_list(self):
+        new_size = min(len(self.tabu_list) + self.tabu_growth, self.max_tabu_size)
+        new_tabu = deque(self.tabu_list, maxlen=new_size)
+        self.tabu_list = new_tabu
 
     def run(self):
         current_sequence = np.array(self.masked_sequence, copy=True)
@@ -95,7 +98,7 @@ class TabuSearch:
             for seq, pred, err in zip(mutated_sequences, predictions, errors):
                 seq_key = self.cnn.reverse_one_hot_sequence(seq)
                 if seq_key in self.tabu_list and err >= best_error:
-                    continue  # Skip tabu move unless it improves best known
+                    continue
 
                 if err < best_candidate_error:
                     best_candidate = seq
@@ -113,11 +116,15 @@ class TabuSearch:
             seq_key = self.cnn.reverse_one_hot_sequence(current_sequence)
             self.tabu_list.append(seq_key)
 
-            # Early stop if tabu list is cycling
+            # Detect and respond to repetition
             tabu_sig = self._tabu_signature()
             if tabu_sig in self.tabu_history:
-                self.early_stop = True
-                break
+                if len(self.tabu_list) < self.max_tabu_size:
+                    self._grow_tabu_list()
+                    continue  # Allow run to continue with extended memory
+                else:
+                    self.early_stop = True
+                    break
             self.tabu_history.add(tabu_sig)
 
             self.prediction_history.append(current_prediction)

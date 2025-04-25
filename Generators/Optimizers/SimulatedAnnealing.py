@@ -10,7 +10,8 @@ class SimulatedAnnealing:
     Simulated Annealing search algorithm to optimize sequences.
     '''
     def __init__(self, cnn_model_path, masked_sequence, target_expression, 
-                 initial_temperature=10.0, cooling_rate=0.99, max_iter=1000, seed=None):
+                 initial_temperature=10.0, cooling_rate=0.99, max_iter=1000, 
+                 early_stopping_patience=None, seed=None):
         if seed is not None:
             self._set_seed(seed)
         
@@ -21,6 +22,8 @@ class SimulatedAnnealing:
         self.temperature = initial_temperature
         self.cooling_rate = cooling_rate
         self.max_iter = max_iter
+        self.early_stopping_patience = early_stopping_patience
+        self.early_stopping_counter = 0
         
         self.nucleotides = np.array([
             [1, 0, 0, 0],  # A
@@ -83,14 +86,21 @@ class SimulatedAnnealing:
                     best_sequence = current_sequence
                     best_prediction = current_prediction
                     best_error = current_error
+                    self.early_stopping_counter = 0
+                else:
+                    self.early_stopping_counter += 1
             
             self.temperature *= self.cooling_rate
-            
-            if best_error == 0:
-                break
 
             self.prediction_history.append(best_prediction)
             self.error_history.append(best_error)
             self.infill_history.append(best_sequence)
+            
+            if best_error == 0:
+                break
+
+            if self.early_stopping_patience != None and self.early_stopping_counter >= self.early_stopping_patience:
+                self.early_stop = True
+                break
 
         return self.cnn.reverse_one_hot_sequence(best_sequence), best_prediction, best_error

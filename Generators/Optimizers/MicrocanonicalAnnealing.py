@@ -9,7 +9,7 @@ class MicrocanonicalAnnealing:
     Microcanonical Annealing search algorithm to optimize sequences.
     '''
     def __init__(self, cnn_model_path, masked_sequence, target_expression, 
-                 initial_kinetic_energy=1.0, max_iter=1000, seed=None):
+                 initial_kinetic_energy=1.0, max_iter=1000, early_stopping_patience=None, seed=None):
         if seed is not None:
             self._set_seed(seed)
 
@@ -19,6 +19,8 @@ class MicrocanonicalAnnealing:
         self.target_expression = target_expression
         self.kinetic_energy = initial_kinetic_energy
         self.max_iter = max_iter
+        self.early_stopping_patience = early_stopping_patience
+        self.early_stopping_counter = 0
 
         self.nucleotides = np.array([
             [1, 0, 0, 0],  # A
@@ -83,6 +85,9 @@ class MicrocanonicalAnnealing:
                     best_sequence = current_sequence
                     best_prediction = current_prediction
                     best_error = current_error
+                    self.early_stopping_counter = 0
+                else:
+                    self.early_stopping_counter += 1
 
             elif self.kinetic_energy >= delta_error:
                 # Accept worse solution if enough kinetic energy
@@ -98,5 +103,8 @@ class MicrocanonicalAnnealing:
 
             if best_error == 0:
                 break
-
+            
+            if self.early_stopping_patience != None and self.early_stopping_counter >= self.early_stopping_patience:
+                break
+            
         return self.cnn.reverse_one_hot_sequence(best_sequence), best_prediction, best_error

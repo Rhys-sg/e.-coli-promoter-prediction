@@ -2,12 +2,14 @@ import random
 from deap import tools  # type: ignore
 
 class Lineage:
-    def __init__(self, toolbox, population_size, crossover_rate, mutation_prob, reconstruct_sequence, reverse_one_hot_sequence, cnn, elitism_rate, survival_rate, track_history):
+    def __init__(self, toolbox, population_size, early_stopping_patience, crossover_rate, mutation_prob, reconstruct_sequence, reverse_one_hot_sequence, cnn, elitism_rate, survival_rate, track_history, track_convergence):
         """
         Lineage initialization.
         """
         self.toolbox = toolbox
         self.population_size = population_size
+        self.early_stopping_patience = early_stopping_patience
+        self.early_stopping_counter = 0
         self.generation_idx = 0
         self.crossover_rate = crossover_rate
         self.mutation_prob = mutation_prob
@@ -23,11 +25,12 @@ class Lineage:
         self.best_prediction = None
 
         self.track_history = track_history
+        self.track_convergence = track_convergence
         self.population_history = []
         self.sequence_history = []
         self.fitness_history = []
         self.prediction_history = []
-        # self.convergence_history = []
+        self.convergence_history = []
 
     def run(self, generations=1):
         """
@@ -51,7 +54,7 @@ class Lineage:
             elite = tools.selBest(self.population, elite_size)
 
             # Select parents to mate (excluding elite)
-            surviving_n = max(0, int(self.survival_rate * self.population_size) - elite_size)
+            surviving_n = max(1, int(self.survival_rate * self.population_size) - elite_size)
             parents = self.toolbox.select(self.population, surviving_n)
             random.shuffle(parents)
 
@@ -70,7 +73,7 @@ class Lineage:
                 i += 1
 
             # Calculate mutation rate
-            mutation_rate = self.toolbox.adj_mutation_rate(generation_idx=self.generation_idx, population=self.population)
+            mutation_rate = self.toolbox.mutation_rate(generation_idx=self.generation_idx, population=self.population)
 
             # Apply Mutation
             for individual in offspring:
@@ -87,6 +90,7 @@ class Lineage:
 
             # Combine elite and offspring to form the new population
             self.population[:] = elite + offspring[:self.population_size - elite_size]
+            
 
             # Update the best individual
             current_best = tools.selBest(self.population, 1)[0]
@@ -96,6 +100,9 @@ class Lineage:
             if self.track_history:
                 self._update_histories()
 
+            # Check for early stopping
+            if self.early_stopping_counter != None and self.early_stopping_counter >= self.early_stopping_patience:
+                return
 
     def _update_best(self, individual):
         if self.best_fitness is None or individual.fitness.values[0] > self.best_fitness:
@@ -103,13 +110,17 @@ class Lineage:
             reconstructed_sequence = self.reconstruct_sequence(individual)
             self.best_sequence = self.reverse_one_hot_sequence(reconstructed_sequence)
             self.best_prediction = self.cnn.predict([reconstructed_sequence])[0]
+            self.early_stopping_counter = 0
+        else:
+            self.early_stopping_counter += 1
 
     def _update_histories(self):
         self.population_history.append(self.population)
         self.sequence_history.append(self.best_sequence)
         self.fitness_history.append(self.best_fitness)
         self.prediction_history.append(self.best_prediction)
-        # self.convergence_history.append(self._calculate_convergence())
+        if self.track_convergence:
+            self.convergence_history.append(self._calculate_convergence())
     
     def _calculate_convergence(self):
         '''

@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 from keras.models import load_model  # type: ignore
 
 class OneHotMethodWrapper:
@@ -55,12 +54,8 @@ class CNN:
         return np.array([self.cache[seq] for seq in sequences])
 
     def _predict(self, sequences):
-        tensor_sequences = torch.tensor(
-            [list(seq) for seq in sequences],
-            dtype=torch.float32
-        )
-        with torch.no_grad():
-            predictions = self.model(tensor_sequences).cpu().numpy().flatten()
+        tensor_sequences = np.array([list(seq) for seq in sequences], dtype=np.float32)
+        predictions = self.model.predict(tensor_sequences, verbose=0).flatten()
         return predictions
     
     one_hot_sequence = OneHotMethodWrapper()

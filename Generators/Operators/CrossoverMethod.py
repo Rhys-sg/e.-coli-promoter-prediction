@@ -48,3 +48,7 @@ class CrossoverMethod():
             child2.extend(parent2[last_point:])
         
         return tuple(child1), tuple(child2)
+
+    @staticmethod
+    def get_all_methods():
+        return [method for method in dir(CrossoverMethod) if method.startswith('cx')]

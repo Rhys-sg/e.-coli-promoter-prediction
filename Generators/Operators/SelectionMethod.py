@@ -122,6 +122,6 @@ class SelectionMethod():
 
         return chosen
 
-    
+    @staticmethod
     def get_all_methods():
         return [method for method in dir(SelectionMethod) if method.startswith('sel')]

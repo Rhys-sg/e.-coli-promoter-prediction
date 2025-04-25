@@ -10,7 +10,8 @@ class HillClimbAlgorithm:
     Finds the optimal single nucleotide mutation, then iterates until it reaches a local optimal.
     '''
 
-    def __init__(self, cnn_model_path, masked_sequence, target_expression, max_iter=100, seed=None):
+    def __init__(self, cnn_model_path, masked_sequence, target_expression,
+                 max_iter=500, early_stopping_patience=None, seed=None):
         if seed is not None:
             self._set_seed(seed)
 
