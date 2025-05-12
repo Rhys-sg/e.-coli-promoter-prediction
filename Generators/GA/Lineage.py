@@ -101,7 +101,7 @@ class Lineage:
                 self._update_histories()
 
             # Check for early stopping
-            if self.early_stopping_counter != None and self.early_stopping_counter >= self.early_stopping_patience:
+            if self.early_stopping_patience != None and self.early_stopping_counter >= self.early_stopping_counter:
                 return
 
     def _update_best(self, individual):

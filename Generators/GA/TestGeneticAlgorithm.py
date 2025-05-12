@@ -42,6 +42,7 @@ class GeneticAlgorithm:
             mutation_rate_start=0.1,
             mutation_rate_end=0.1,
             mutation_rate_degree=2,
+            mutation_by_deletion_rate=0.0,
 
             # Crossover parameters
             crossover_method='cxUniform',
@@ -71,6 +72,7 @@ class GeneticAlgorithm:
         self.early_stopping_patience = early_stopping_patience
         self.crossover_rate = crossover_rate
         self.mutation_prob = mutation_prob
+        self.mutation_by_deletion_rate = mutation_by_deletion_rate
 
         # CNN model and attributes
         self.cnn = CNN(cnn_model_path)
@@ -130,17 +132,39 @@ class GeneticAlgorithm:
             return [(fit,) for fit in fitness]
 
         def mutate(individual, mutation_rate):
-            '''The mutation rate remains constant over time.'''
-            for i in range(len(individual)):
-                if random.random() < mutation_rate:
-                    individual[i] = mutate_idv(individual[i])
+            """Apply standard mutation and mutation by deletion-reinsertion."""
+            # Apply standard per-nucleotide mutation
+            individual = mutate_by_substitution(individual, mutation_rate)
+
+            # Apply mutation by deletion-reinsertion with a separate probability
+            if random.random() < self.mutation_by_deletion_rate:
+                individual = mutate_by_deletion(individual)
+
             return (individual,)
         
-        def mutate_idv(nucleotide):
-            '''Randomly change a one-hot encoded nucleotide to another one-hot encoded nucleotide.'''
-            nucleotide = [0, 0, 0, 0]
-            nucleotide[random.randint(0, 3)] = 1
-            return tuple(nucleotide)
+        def mutate_by_substitution(individual, mutation_rate):
+            """Mutate each nucleotide with a given probability."""
+            for i in range(len(individual)):
+                if random.random() < mutation_rate:
+                    individual[i] = [0, 0, 0, 0]
+                    individual[i][random.randint(0, 3)] = 1
+                    individual[i] = tuple(individual[i])
+            return individual
+
+        def mutate_by_deletion(individual):
+            """Deletes a nucleotide from a random position and reinserts it at another."""
+            if len(individual) < 2:
+                return individual
+
+            remove_idx = random.randrange(len(individual))
+            nucleotide = individual.pop(remove_idx)
+
+            insert_idx = random.randrange(len(individual) + 1)
+            while insert_idx == remove_idx:
+                insert_idx = random.randrange(len(individual) + 1)
+
+            individual.insert(insert_idx, nucleotide)
+            return individual
         
         # Override map to process individuals in batches
         def batch_map(evaluate, individuals):
