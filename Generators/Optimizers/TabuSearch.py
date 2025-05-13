@@ -69,6 +69,12 @@ class TabuSearch:
 
     def run(self):
         current_sequence = np.array(self.masked_sequence, copy=True)
+
+        # randomly initialize the sequence
+        for idx in self.mask_indices:
+            random_nt = random.choice(self.nucleotides)
+            current_sequence[idx] = random_nt
+
         current_prediction, current_error = self._evaluate_sequences([current_sequence])
 
         best_sequence = current_sequence.copy()

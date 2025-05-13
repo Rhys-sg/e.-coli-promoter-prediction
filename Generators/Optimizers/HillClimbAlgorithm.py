@@ -59,8 +59,13 @@ class HillClimbAlgorithm:
         return predictions, errors
 
     def run(self):
-        '''Run the greedy search algorithm iteratively while tracking history.'''
         current_sequence = np.array(self.masked_sequence, copy=True)
+
+        # randomly initialize the sequence
+        for idx in self.mask_indices:
+            random_nt = random.choice(self.nucleotides)
+            current_sequence[idx] = random_nt
+
         current_prediction, current_error = self._evaluate_sequences([current_sequence])
 
         best_sequence = self.cnn.reverse_one_hot_sequence(current_sequence)

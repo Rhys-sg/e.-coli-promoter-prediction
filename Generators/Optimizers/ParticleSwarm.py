@@ -7,7 +7,7 @@ import pyswarms as ps
 
 class ParticleSwarm:
     def __init__(self, cnn_model_path, masked_sequence, target_expression,
-                 c1=0.43, c2=0.62, w=0.53, n_particles=30, max_iter=300,
+                 c1=0.43, c2=0.62, w=0.53, n_particles=20, max_iter=300,
                  early_stopping_patience=None, seed=None):
         if seed is not None:
             self._set_seed(seed)
@@ -101,22 +101,3 @@ class ParticleSwarm:
         best_error = abs(self.target_expression - best_prediction)
 
         return self.cnn.reverse_one_hot_sequence(best_sequence), best_prediction, best_error
-
-
-    # def run(self):
-    #     dim = len(self.mask_indices)
-    #     bounds = (np.zeros(dim), np.full(dim, 3))
-
-    #     optimizer = ps.single.GlobalBestPSO(
-    #         n_particles=self.n_particles,
-    #         dimensions=dim,
-    #         options={'c1': 0.5, 'c2': 0.3, 'w': 0.9},
-    #         bounds=bounds
-    #     )
-
-    #     best_cost, best_pos = optimizer.optimize(self._evaluate_particles, iters=self.max_iter)
-    #     best_sequence = self._decode_particle(best_pos)
-    #     best_prediction = self.cnn.predict([best_sequence], use_cache=False)[0]
-    #     best_error = abs(self.target_expression - best_prediction)
-
-    #     return self.cnn.reverse_one_hot_sequence(best_sequence), best_prediction, best_error
